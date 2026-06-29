@@ -23,7 +23,7 @@ jobs:
         env:
           GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
           GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
-        run: python fetch_runs.py
+        run: python fetch_activities.py
 
       - name: Commit and push runs.csv
         run: |
