@@ -24,6 +24,10 @@ while True:
     if len(batch) < batch_size:
         break
 
+# Debug: print all unique activity types found
+unique_types = set(a.get("activityType", {}).get("typeKey", "") for a in all_activities)
+print("Activity types found:", unique_types)
+
 # ── Filter functions ─────────────────────────────────────────────────────────
 def is_running(a):
     type_key = a.get("activityType", {}).get("typeKey", "").lower()
