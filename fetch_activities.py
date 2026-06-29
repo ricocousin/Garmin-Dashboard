@@ -276,9 +276,9 @@ if os.path.exists(lt_file):
         lt_records = json.load(f)
 
 try:
-    status = client.get_training_status(today.strftime("%Y-%m-%d"))
-    print("Training status keys:", list(status.keys()) if isinstance(status, dict) else type(status))
-    print("Training status sample:", str(status)[:500])
+    lt = client.get_lactate_threshold()
+    print("LT keys:", list(lt.keys()) if isinstance(lt, dict) else type(lt))
+    print("LT sample:", str(lt)[:500])
 except Exception as e:
     print(f"LT fetch skipped: {e}")
 
