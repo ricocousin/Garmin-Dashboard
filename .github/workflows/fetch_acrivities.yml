@@ -1,4 +1,4 @@
-name: Fetch Garmin Runs
+name: Fetch Garmin Activities
 
 on:
   schedule:
