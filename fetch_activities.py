@@ -24,21 +24,18 @@ while True:
     if len(batch) < batch_size:
         break
 
-# Debug: print all unique activity types found
-unique_types = set(a.get("activityType", {}).get("typeKey", "") for a in all_activities)
-print("Activity types found:", unique_types)
 
 # ── Filter functions ─────────────────────────────────────────────────────────
 def is_running(a):
     type_key = a.get("activityType", {}).get("typeKey", "").lower()
-    return type_key in ["running", "treadmill_running"]
+    return type_key in ["running", "treadmill_running", "trail_running"]
 
 def is_treadmill(a):
     return a.get("activityType", {}).get("typeKey", "").lower() == "treadmill_running"
 
 def is_strength(a):
     type_key = a.get("activityType", {}).get("typeKey", "").lower()
-    return type_key in ["strength_training", "fitness_equipment"]
+    return type_key in ["strength_training"]
 
 running = [a for a in all_activities if is_running(a)]
 strength = [a for a in all_activities if is_strength(a)]
