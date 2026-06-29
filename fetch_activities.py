@@ -267,26 +267,18 @@ if os.path.exists(lt_file):
     with open(lt_file, "r", encoding="utf-8") as f:
         lt_records = json.load(f)
 
+# ── Lactate threshold ─────────────────────────────────────────────────────────
+lt_records = []
+lt_file = "lactate.json"
+
+if os.path.exists(lt_file):
+    with open(lt_file, "r", encoding="utf-8") as f:
+        lt_records = json.load(f)
+
 try:
     status = client.get_training_status(today.strftime("%Y-%m-%d"))
-    lt_hr = status.get("latestLactateThresholdHeartRate")
-    lt_speed = status.get("latestLactateThresholdSpeed")
-    if lt_hr and lt_speed:
-        pace_sec = (1 / lt_speed) * (1000 / 60)
-        pace_min = int(pace_sec)
-        pace_s = int((pace_sec - pace_min) * 60)
-        today_str = str(today.date())
-        if not any(r["date"] == today_str for r in lt_records):
-            lt_records.append({
-                "date": today_str,
-                "lt_hr": round(lt_hr),
-                "lt_pace": f"{pace_min}:{pace_s:02d}"
-            })
-            print(f"LT recorded: {pace_min}:{pace_s:02d} /km @ {round(lt_hr)} bpm")
-        else:
-            print("LT already recorded today")
-    else:
-        print("LT data not available from Garmin")
+    print("Training status keys:", list(status.keys()) if isinstance(status, dict) else type(status))
+    print("Training status sample:", str(status)[:500])
 except Exception as e:
     print(f"LT fetch skipped: {e}")
 
