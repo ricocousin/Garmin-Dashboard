@@ -282,7 +282,7 @@ try:
     lt_speed = lt_data.get("speed")
     lt_date = lt_data.get("calendarDate", "")[:10]
     if lt_hr and lt_speed:
-        pace_sec = (1 / lt_speed) * (1000 / 60)
+        pace_sec = (1 / (lt_speed * 10)) * (1000 / 60)
         pace_min = int(pace_sec)
         pace_s = int((pace_sec - pace_min) * 60)
         today_str = str(today.date())
