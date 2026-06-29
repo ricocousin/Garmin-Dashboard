@@ -277,8 +277,27 @@ if os.path.exists(lt_file):
 
 try:
     lt = client.get_lactate_threshold()
-    print("LT keys:", list(lt.keys()) if isinstance(lt, dict) else type(lt))
-    print("LT sample:", str(lt)[:500])
+    lt_data = lt.get("speed_and_heart_rate", {})
+    lt_hr = lt_data.get("heartRate")
+    lt_speed = lt_data.get("speed")
+    lt_date = lt_data.get("calendarDate", "")[:10]
+    if lt_hr and lt_speed:
+        pace_sec = (1 / lt_speed) * (1000 / 60)
+        pace_min = int(pace_sec)
+        pace_s = int((pace_sec - pace_min) * 60)
+        today_str = str(today.date())
+        if not any(r["date"] == today_str for r in lt_records):
+            lt_records.append({
+                "date": today_str,
+                "lt_hr": round(lt_hr),
+                "lt_pace": f"{pace_min}:{pace_s:02d}",
+                "lt_source_date": lt_date
+            })
+            print(f"LT recorded: {pace_min}:{pace_s:02d} /km @ {round(lt_hr)} bpm")
+        else:
+            print("LT already recorded today")
+    else:
+        print("LT data not available")
 except Exception as e:
     print(f"LT fetch skipped: {e}")
 
