@@ -5,5 +5,10 @@
   "total_distance_this_year_km": 512.4,
   "avg_runs_per_week_this_year": 2.1,
   "current_weekly_streak": 0,
-  "longest_weekly_streak": 19
+  "longest_weekly_streak": 19,
+  "total_strength_this_year": 32,
+  "total_strength_all_time": 137,
+  "total_strength_min_this_year": 2619.0,
+  "current_strength_weekly_streak": 0,
+  "longest_strength_weekly_streak": 23
 }
