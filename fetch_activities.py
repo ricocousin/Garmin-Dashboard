@@ -24,25 +24,6 @@ while True:
     if len(batch) < batch_size:
         break
 
-# Fetch lactate threshold estimates from recent activities
-lt_data = []
-for a in running[-30:]:  # last 30 runs
-    try:
-        details = client.get_activity_details(a["activityId"])
-        lt_hr = details.get("connectIQMeasurements", {})
-        # Try to get LT from activity summary metrics
-        metrics = details.get("summaryDTO", {})
-        lt_hr_val = metrics.get("lactateThresholdBpm", None)
-        lt_pace_val = metrics.get("lactateThresholdSpeed", None)
-        if lt_hr_val or lt_pace_val:
-            lt_data.append({
-                "date": a.get("startTimeLocal", "")[:10],
-                "lt_hr": lt_hr_val,
-                "lt_pace_mps": lt_pace_val
-            })
-    except:
-        continue
-
 # ── Filter functions ─────────────────────────────────────────────────────────
 def is_running(a):
     type_key = a.get("activityType", {}).get("typeKey", "").lower()
