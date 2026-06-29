@@ -709,7 +709,188 @@ function render(runs, summary) {
   }
 }
 
-init().catch(err => {
+// ── Strength section ─────────────────────────────────────────────────────────
+async function initStrength(summary) {
+  const strengthRaw = await fetch('strength.csv').then(r => r.text()).catch(() => null);
+  if (!strengthRaw) return;
+
+  const { data: rows } = Papa.parse(strengthRaw, { header: true, skipEmptyLines: true });
+  const sessions = rows.filter(r => r.date);
+
+  const app = $('app');
+  const thisYear = new Date().getFullYear().toString();
+
+  // Section divider
+  const divider = document.createElement('div');
+  divider.style.cssText = 'border-top: 1px solid var(--border); margin-top: 0.5rem; padding-top: 0.5rem;';
+  divider.innerHTML = `
+    <div style="font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-dim);padding:0.5rem 0 1rem">
+      Strength Training
+    </div>
+  `;
+  app.appendChild(divider);
+
+  // Strength stat strip
+  const yearSessions = sessions.filter(s => s.date.startsWith(thisYear));
+  const totalMinYear = yearSessions.reduce((sum, s) => sum + (parseFloat(s.duration_min) || 0), 0);
+  const totalHrsYear = (totalMinYear / 60).toFixed(1);
+
+  // Weekly session counts for last 16 weeks
+  function isoWeek(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const jan4 = new Date(d.getFullYear(), 0, 4);
+    const week = Math.ceil(((d - jan4) / 86400000 + jan4.getDay() + 1) / 7);
+    return `${d.getFullYear()}-W${String(week).padStart(2,'0')}`;
+  }
+
+  const weekMap = {};
+  sessions.forEach(s => {
+    const wk = isoWeek(s.date);
+    if (!weekMap[wk]) weekMap[wk] = { count: 0, mins: 0 };
+    weekMap[wk].count++;
+    weekMap[wk].mins += parseFloat(s.duration_min) || 0;
+  });
+
+  const weekKeys = Object.keys(weekMap).sort().slice(-16);
+  const weekCounts = weekKeys.map(k => weekMap[k].count);
+  const weekMins = weekKeys.map(k => parseFloat(weekMap[k].mins.toFixed(0)));
+  const weekLabels = weekKeys.map(k => k.split('-')[1]);
+
+  const sStrip = document.createElement('div');
+  sStrip.className = 'stat-strip';
+  sStrip.innerHTML = `
+    <div class="stat">
+      <span class="stat-label">Sessions ${thisYear}</span>
+      <span class="stat-value accent">${summary?.total_strength_this_year ?? yearSessions.length}</span>
+      <span class="stat-sub">${summary?.total_strength_all_time ?? sessions.length} all time</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Hours ${thisYear}</span>
+      <span class="stat-value">${totalHrsYear} <small style="font-size:1rem;color:var(--text-dim)">hrs</small></span>
+      <span class="stat-sub">${Math.round(totalMinYear)} mins total</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Weekly streak</span>
+      <span class="stat-value accent">${summary?.current_strength_weekly_streak ?? '—'} <small style="font-size:1rem;color:var(--text-dim)">wks</small></span>
+      <span class="stat-sub">Best: ${summary?.longest_strength_weekly_streak ?? '—'} weeks</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Last session</span>
+      <span class="stat-value" style="font-size:1.4rem">${sessions[0]?.date ?? '—'}</span>
+      <span class="stat-sub">${sessions[0]?.elapsed_time ?? '—'} · ${sessions[0]?.calories ? sessions[0].calories + ' kcal' : '—'}</span>
+    </div>
+  `;
+  app.appendChild(sStrip);
+
+  // Strength charts grid
+  const grid = document.createElement('div');
+  grid.className = 'grid-2';
+
+  // Weekly sessions bar chart
+  const sessCard = document.createElement('div');
+  sessCard.className = 'card';
+  sessCard.innerHTML = `
+    <div class="card-title">Weekly sessions — last 16 weeks</div>
+    <div class="chart-wrap"><canvas id="strengthCountChart"></canvas></div>
+  `;
+  grid.appendChild(sessCard);
+
+  // Weekly minutes bar chart
+  const minsCard = document.createElement('div');
+  minsCard.className = 'card';
+  minsCard.innerHTML = `
+    <div class="card-title">Weekly training time — last 16 weeks</div>
+    <div class="chart-wrap"><canvas id="strengthMinsChart"></canvas></div>
+  `;
+  grid.appendChild(minsCard);
+  app.appendChild(grid);
+
+  // Recent strength sessions table
+  const recentCard = document.createElement('div');
+  recentCard.className = 'card';
+  const recent10 = sessions.slice(0, 10);
+  recentCard.innerHTML = `
+    <div class="card-title">Recent strength sessions</div>
+    <table class="runs-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Name</th>
+          <th>Duration</th>
+          <th>Calories</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${recent10.map(s => `
+          <tr>
+            <td class="mono" style="color:var(--text-dim);white-space:nowrap">${s.date}</td>
+            <td class="run-name">${s.name || '—'}</td>
+            <td class="mono">${s.elapsed_time || '—'}</td>
+            <td class="mono">${s.calories || '—'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  app.appendChild(recentCard);
+
+  // Render charts
+  requestAnimationFrame(() => {
+    new Chart($('strengthCountChart'), {
+      type: 'bar',
+      data: {
+        labels: weekLabels,
+        datasets: [{
+          data: weekCounts,
+          backgroundColor: weekCounts.map((_, i) =>
+            i === weekCounts.length - 1 ? 'rgba(255,107,53,0.85)' : 'rgba(232,255,90,0.25)'
+          ),
+          borderRadius: 2,
+        }]
+      },
+      options: {
+        ...chartOpts(),
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#6b6b78' } },
+          y: { grid: { color: '#1f1f24' }, ticks: { color: '#6b6b78', stepSize: 1 } }
+        },
+        plugins: { ...chartOpts().plugins, tooltip: {
+          ...chartOpts().plugins.tooltip,
+          callbacks: { label: ctx => ` ${ctx.parsed.y} session${ctx.parsed.y !== 1 ? 's' : ''}` }
+        }}
+      }
+    });
+
+    new Chart($('strengthMinsChart'), {
+      type: 'bar',
+      data: {
+        labels: weekLabels,
+        datasets: [{
+          data: weekMins,
+          backgroundColor: weekMins.map((_, i) =>
+            i === weekMins.length - 1 ? 'rgba(255,107,53,0.85)' : 'rgba(74,158,255,0.25)'
+          ),
+          borderRadius: 2,
+        }]
+      },
+      options: {
+        ...chartOpts(),
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#6b6b78' } },
+          y: { grid: { color: '#1f1f24' }, ticks: { color: '#6b6b78', callback: v => `${v}m` } }
+        },
+        plugins: { ...chartOpts().plugins, tooltip: {
+          ...chartOpts().plugins.tooltip,
+          callbacks: { label: ctx => ` ${ctx.parsed.y} mins` }
+        }}
+      }
+    });
+  });
+}
+
+init().then(() => {
+  fetch('summary.json').then(r => r.json()).then(s => initStrength(s)).catch(() => initStrength(null));
+}).catch(err => {
   document.getElementById('app').innerHTML = `
     <div class="loading">Failed to load run data.<br><small>${err.message}</small></div>
   `;
