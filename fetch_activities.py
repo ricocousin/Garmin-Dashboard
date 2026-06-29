@@ -185,5 +185,40 @@ summary = {
 
 with open("summary.json", "w", encoding="utf-8") as f:
     json.dump(summary, f, indent=2)
+    
+    # Fetch current lactate threshold estimate
+import os
+
+lt_records = []
+lt_file = "lactate.json"
+
+# Load existing history
+if os.path.exists(lt_file):
+    with open(lt_file, "r", encoding="utf-8") as f:
+        lt_records = json.load(f)
+
+try:
+    status = client.get_training_status()
+    lt_hr = status.get("latestLactateThresholdHeartRate")
+    lt_speed = status.get("latestLactateThresholdSpeed")  # m/s
+    if lt_hr and lt_speed:
+        pace_sec = (1 / lt_speed) * (1000 / 60)
+        pace_min = int(pace_sec)
+        pace_s = int((pace_sec - pace_min) * 60)
+        today_str = str(datetime.today().date())
+        # Only add if not already recorded today
+        if not any(r["date"] == today_str for r in lt_records):
+            lt_records.append({
+                "date": today_str,
+                "lt_hr": round(lt_hr),
+                "lt_pace": f"{pace_min}:{pace_s:02d}"
+            })
+except Exception as e:
+    print(f"LT fetch skipped: {e}")
+
+with open(lt_file, "w", encoding="utf-8") as f:
+    json.dump(lt_records, f, indent=2)
+
+print(f"LT records stored: {len(lt_records)}")
 
 print(f"Done! {len(running)} runs, {len(strength)} strength sessions fetched.")
