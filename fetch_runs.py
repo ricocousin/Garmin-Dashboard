@@ -73,4 +73,117 @@ with open("runs.csv", "w", newline="", encoding="utf-8") as f:
     writer.writeheader()
     for a in sorted(running, key=lambda x: x.get("startTimeLocal", ""), reverse=True):
         dist = a.get("distance", 0)
-        duration = a.get("movingD
+        duration = a.get("movingDuration", 0)
+        elev_gain = a.get("elevationGain", "")
+        elev_loss = a.get("elevationLoss", "")
+        min_elev = a.get("minElevation", "")
+        max_elev = a.get("maxElevation", "")
+        writer.writerow({
+            "date": a.get("startTimeLocal", "")[:10],
+            "name": a.get("activityName", ""),
+            "type": "treadmill" if is_treadmill(a) else "outdoor",
+            "distance_km": round(dist / 1000, 2) if dist else "",
+            "moving_time": fmt_time(duration),
+            "elapsed_time": fmt_time(a.get("duration", 0)),
+            "avg_hr": a.get("averageHR", ""),
+            "max_hr": a.get("maxHR", ""),
+            "elevation_gain_m": round(elev_gain, 1) if elev_gain else "",
+            "elevation_loss_m": round(elev_loss, 1) if elev_loss else "",
+            "min_elevation_m": round(min_elev, 1) if min_elev else "",
+            "max_elevation_m": round(max_elev, 1) if max_elev else "",
+            "avg_pace_min_km": calc_pace(duration, dist),
+            "calories": a.get("calories", ""),
+            "training_load": a.get("activityTrainingLoad", ""),
+            "aerobic_training_effect": a.get("aerobicTrainingEffect", ""),
+            "anaerobic_training_effect": a.get("anaerobicTrainingEffect", ""),
+            "vo2max_estimate": a.get("vO2MaxValue", "")
+        })
+
+# ── Write strength.csv ───────────────────────────────────────────────────────
+with open("strength.csv", "w", newline="", encoding="utf-8") as f:
+    writer = csv.DictWriter(f, fieldnames=["date", "name", "elapsed_time", "duration_min", "calories"])
+    writer.writeheader()
+    for a in sorted(strength, key=lambda x: x.get("startTimeLocal", ""), reverse=True):
+        duration_s = a.get("duration", 0)
+        writer.writerow({
+            "date": a.get("startTimeLocal", "")[:10],
+            "name": a.get("activityName", ""),
+            "elapsed_time": fmt_time(duration_s),
+            "duration_min": round(duration_s / 60, 1) if duration_s else "",
+            "calories": a.get("calories", "")
+        })
+
+# ── Aggregate stats ──────────────────────────────────────────────────────────
+today = datetime.today().date()
+year_start = datetime(today.year, 1, 1).date()
+
+run_dates = sorted(set(
+    datetime.strptime(a.get("startTimeLocal", "")[:10], "%Y-%m-%d").date()
+    for a in running if a.get("startTimeLocal")
+))
+
+runs_this_year = [a for a in running if a.get("startTimeLocal", "")[:10] >= str(year_start)]
+strength_this_year = [a for a in strength if a.get("startTimeLocal", "")[:10] >= str(year_start)]
+
+total_distance_this_year = sum(a.get("distance", 0) for a in runs_this_year) / 1000
+total_strength_min_this_year = sum(a.get("duration", 0) for a in strength_this_year) / 60
+
+weeks_with_runs = set(get_week(d) for d in run_dates)
+
+strength_dates = sorted(set(
+    datetime.strptime(a.get("startTimeLocal", "")[:10], "%Y-%m-%d").date()
+    for a in strength if a.get("startTimeLocal")
+))
+weeks_with_strength = set(get_week(d) for d in strength_dates)
+
+def calc_current_streak(weeks_set):
+    streak = 0
+    week = today - timedelta(days=today.weekday())
+    while True:
+        if get_week(week) in weeks_set:
+            streak += 1
+            week -= timedelta(weeks=1)
+        else:
+            break
+    return streak
+
+def calc_longest_streak(weeks_set):
+    if not weeks_set:
+        return 0
+    sorted_weeks = sorted(weeks_set)
+    longest = current = 1
+    for i in range(1, len(sorted_weeks)):
+        y1, w1 = sorted_weeks[i-1]
+        y2, w2 = sorted_weeks[i]
+        diff = (datetime.strptime(f"{y2} {w2} 1", "%G %V %u").date() -
+                datetime.strptime(f"{y1} {w1} 1", "%G %V %u").date()).days
+        if diff == 7:
+            current += 1
+            longest = max(longest, current)
+        else:
+            current = 1
+    return longest
+
+weeks_in_year = len(set(get_week(
+    datetime.strptime(a.get("startTimeLocal", "")[:10], "%Y-%m-%d").date()
+) for a in runs_this_year if a.get("startTimeLocal")))
+
+summary = {
+    "last_updated": str(today),
+    "total_runs_all_time": len(running),
+    "total_runs_this_year": len(runs_this_year),
+    "total_distance_this_year_km": round(total_distance_this_year, 1),
+    "avg_runs_per_week_this_year": round(len(runs_this_year) / max(weeks_in_year, 1), 1),
+    "current_weekly_streak": calc_current_streak(weeks_with_runs),
+    "longest_weekly_streak": calc_longest_streak(weeks_with_runs),
+    "total_strength_this_year": len(strength_this_year),
+    "total_strength_all_time": len(strength),
+    "total_strength_min_this_year": round(total_strength_min_this_year, 0),
+    "current_strength_weekly_streak": calc_current_streak(weeks_with_strength),
+    "longest_strength_weekly_streak": calc_longest_streak(weeks_with_strength)
+}
+
+with open("summary.json", "w", encoding="utf-8") as f:
+    json.dump(summary, f, indent=2)
+
+print(f"Done! {len(running)} runs, {len(strength)} strength sessions fetched.")
