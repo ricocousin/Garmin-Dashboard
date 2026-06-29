@@ -2,7 +2,8 @@ name: Fetch Garmin Activities
 
 on:
   schedule:
-    - cron: '0 5 * * *'
+    - cron: '0 5 * * *'     # daily incremental
+    - cron: '0 4 1-7 * 0'    # first Sunday of each month
   workflow_dispatch:
 
 jobs:
