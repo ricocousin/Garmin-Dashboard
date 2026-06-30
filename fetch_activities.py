@@ -243,7 +243,7 @@ weeks_in_year = len(set(get_week(
 ) for a in runs_this_year if a.get("date")))
 
 summary = {
-    "last_updated": str(today.date()),
+    "last_updated": today.strftime("%Y-%m-%d %H:%M UTC"),
     "total_runs_this_year": len(runs_this_year),
     "total_distance_this_year_km": round(total_distance_this_year, 1),
     "total_distance_prev_year_km": round(total_distance_prev_year, 1),
