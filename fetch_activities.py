@@ -327,6 +327,7 @@ all_strength_sorted = sorted(all_strength_rows, key=lambda x: x.get("date", ""))
  
 today_date = today.date()
 insights = []
+quiet = {}  # category_key -> muted "nothing to report" reason
  
 # ── 1. Volume trend: last 4 weeks vs the 4 weeks before that ───────────────────
 # WHY 4 WEEKS: a single week is too noisy (one big run skews it), but a full
@@ -347,14 +348,15 @@ prior_4wk = distance_in_window(56, 29)
  
 if prior_4wk > 0:
     volume_change_pct = ((recent_4wk - prior_4wk) / prior_4wk) * 100
-    # WHY ±15%: smaller than this is within normal week-to-week variance for
-    # most runners and not worth commenting on. Above 15% in either direction
-    # is a meaningful, intentional-feeling shift (a build phase or a taper/dip).
     if volume_change_pct > 15:
         insights.append(f"Volume is trending up — {recent_4wk:.0f} km over the last 4 weeks vs {prior_4wk:.0f} km the 4 weeks before, a {volume_change_pct:.0f}% increase.")
     elif volume_change_pct < -15:
         insights.append(f"Volume has dropped — {recent_4wk:.0f} km over the last 4 weeks vs {prior_4wk:.0f} km the 4 weeks before, a {abs(volume_change_pct):.0f}% decrease.")
- 
+    else:
+        quiet["volume"] = "Volume steady — no significant shift in the last 4 weeks."
+else:
+    quiet["volume"] = "Volume trend builds after 8 weeks of data — check back soon."
+    
 # ── 2. PB proximity: any run in the last 30 days within X% of a category PB ────
 # WHY 30 DAYS: long enough to catch a recent strong block, short enough that
 # "recent" still feels recent rather than dredging up something from 4 months ago.
@@ -391,6 +393,8 @@ for label, min_dist in pb_categories:
 if close_calls:
     label, date, pct_off = min(close_calls, key=lambda x: x[2])
     insights.append(f"Close call on your {label} best — within {pct_off:.1f}% of your PB pace on {date}.")
+else:
+    quiet["pb"] = "No close calls on a PB in the last 30 days."
  
 # ── 3. LT trend: latest reading vs ~30 days prior ───────────────────────────────
 # WHY 30 DAYS: lactate threshold genuinely shifts over weeks, not days — a
@@ -399,10 +403,11 @@ if close_calls:
 # WHY ±3 SEC/KM: LT pace readings from this kind of estimate carry some natural
 # noise. A few seconds either way isn't meaningful; we want a change big enough
 # to actually represent a fitness shift, not measurement jitter.
+
+quiet["lt"] = "Lactate threshold trend builds after 30 days of daily readings — check back soon."
 if os.path.exists(lt_file):
     with open(lt_file, "r", encoding="utf-8") as f:
         lt_history = json.load(f)
-    # filter to plausible values only (matches dashboard's own sanity filter)
     lt_history = [r for r in lt_history if r.get("lt_pace") and 120 < (parse_pace_sec(r["lt_pace"]) or 0) < 900]
     lt_history_sorted = sorted(lt_history, key=lambda x: x["date"])
     if len(lt_history_sorted) >= 2:
@@ -414,11 +419,15 @@ if os.path.exists(lt_file):
             latest_sec = parse_pace_sec(latest_lt["lt_pace"])
             baseline_sec = parse_pace_sec(baseline_lt["lt_pace"])
             if latest_sec and baseline_sec:
-                diff = baseline_sec - latest_sec  # positive = faster (improved)
+                diff = baseline_sec - latest_sec
                 if diff > 3:
                     insights.append(f"Lactate threshold has improved — {latest_lt['lt_pace']} /km now vs {baseline_lt['lt_pace']} /km on {baseline_lt['date']}.")
+                    del quiet["lt"]
                 elif diff < -3:
                     insights.append(f"Lactate threshold has eased — {latest_lt['lt_pace']} /km now vs {baseline_lt['lt_pace']} /km on {baseline_lt['date']}.")
+                    del quiet["lt"]
+                else:
+                    quiet["lt"] = "Lactate threshold stable — no meaningful change in the last 30 days."
  
 # ── 4. Training balance: strength sessions vs runs, recent vs YTD norm ─────────
 # WHY 3 WEEKS: short enough to catch "I haven't lifted in a while" while it's
@@ -426,6 +435,7 @@ if os.path.exists(lt_file):
 # WHY ±0.3 RATIO POINTS: the run:strength ratio naturally fluctuates week to
 # week. A shift of 0.3 or more in the ratio (e.g. from 1.5 runs-per-lift to
 # 1.8+) represents a real behavioural change, not noise.
+
 def sessions_in_window(rows, start_days_ago, end_days_ago):
     start = today_date - timedelta(days=start_days_ago)
     end = today_date - timedelta(days=end_days_ago)
@@ -447,7 +457,13 @@ elif ytd_strength > 0 and ytd_runs > 0:
     if recent_ratio and abs(recent_ratio - ytd_ratio) > 0.3:
         if recent_ratio > ytd_ratio:
             insights.append(f"Running has been prioritised over strength recently — {recent_runs_3wk} runs to {recent_strength_3wk} strength sessions in the last 3 weeks, vs a {ytd_ratio:.1f}:1 norm this year.")
- 
+        else:
+            quiet["balance"] = "Run/strength balance steady — no notable shift this period."
+    else:
+        quiet["balance"] = "Run/strength balance steady — no notable shift this period."
+else:
+    quiet["balance"] = "Balance tracking builds once both running and strength data accumulate."
+    
 # ── 5. Activity silence: days since last run / last strength session ───────────
 # WHY 7 DAYS for running: at 4x/week training frequency, 7 days without a run
 # is roughly double the normal gap and worth flagging — shorter would trigger
@@ -460,12 +476,16 @@ if all_runs_sorted:
     days_since_run = (today_date - last_run_date).days
     if days_since_run >= 7:
         insights.append(f"It's been {days_since_run} days since your last run ({last_run_date}).")
- 
+    else:
+        quiet["run_silence"] = f"Recently active — last run {days_since_run} day{'s' if days_since_run != 1 else ''} ago."
+
 if all_strength_sorted:
     last_strength_date = datetime.strptime(all_strength_sorted[-1]["date"], "%Y-%m-%d").date()
     days_since_strength = (today_date - last_strength_date).days
     if days_since_strength >= 10:
         insights.append(f"It's been {days_since_strength} days since your last strength session ({last_strength_date}).")
+    else:
+        quiet["strength_silence"] = f"Recently active — last strength session {days_since_strength} day{'s' if days_since_strength != 1 else ''} ago."
  
 # ── 6. Year-over-year pace of accumulation ──────────────────────────────────────
 # WHY: compares how much distance you'd covered by "today's date" last year
@@ -492,7 +512,11 @@ if dist_last_year_to_date > 0:
     if abs(yoy_pct) > 10:
         direction = "ahead of" if yoy_pct > 0 else "behind"
         insights.append(f"You're {abs(yoy_pct):.0f}% {direction} last year's pace — {dist_this_year_to_date:.0f} km vs {dist_last_year_to_date:.0f} km by this date in {today_last_year.year}.")
- 
+    else:
+        quiet["yoy"] = "On pace with last year — no significant year-over-year shift."
+else:
+    quiet["yoy"] = "Year-over-year comparison needs last year's data by this date."
+    
 # ── Assemble final summary ──────────────────────────────────────────────────────
 # WHY MAX 4 INSIGHTS: more than this starts to feel like a wall of text rather
 # than a quick scan. We prioritise the most "actionable" categories first —
@@ -508,15 +532,16 @@ def priority_key(insight):
     return len(priority_order)
  
 insights_sorted = sorted(insights, key=priority_key)[:4]
- 
+
 if not insights_sorted:
     insights_sorted = ["Training is steady — no major shifts in volume, balance, or pace recently."]
- 
+
 coach_summary = {
     "last_updated": str(today_date),
-    "insights": insights_sorted
+    "insights": insights_sorted,
+    "quiet": list(quiet.values())
 }
- 
+
 with open("coach_summary.json", "w", encoding="utf-8") as f:
     json.dump(coach_summary, f, indent=2)
  
