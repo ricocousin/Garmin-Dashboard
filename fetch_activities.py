@@ -537,7 +537,7 @@ if not insights_sorted:
     insights_sorted = ["Training is steady — no major shifts in volume, balance, or pace recently."]
 
 coach_summary = {
-    "last_updated": str(today_date),
+    "last_updated": today.strftime("%Y-%m-%d %H:%M UTC"),
     "insights": insights_sorted,
     "quiet": list(quiet.values())
 }
