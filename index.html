@@ -29,6 +29,136 @@
     .logo { font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 800; color: var(--text-hi); letter-spacing: -0.03em; line-height: 1; }
     .logo span { color: var(--accent); }
     .last-updated { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+
+    /* ── Activity calendar ── */
+    .cal-wrap {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 1.5rem;
+      align-items: start;
+    }
+    .cal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    .cal-title {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-hi);
+    }
+    .cal-nav {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .cal-nav button {
+      background: var(--border);
+      border: none;
+      color: var(--text-dim);
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .cal-nav button:hover { background: var(--muted); color: var(--text-hi); }
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 3px;
+    }
+    .cal-day-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      text-align: center;
+      padding-bottom: 0.4rem;
+      text-transform: uppercase;
+    }
+    .cal-day {
+      aspect-ratio: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      position: relative;
+      min-width: 0;
+      gap: 2px;
+    }
+    .cal-day-num {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      line-height: 1;
+    }
+    .cal-day.today { background: var(--border); }
+    .cal-day.today .cal-day-num { color: var(--text-hi); }
+    .cal-day.future .cal-day-num { color: var(--muted); opacity: 0.4; }
+    .cal-day.has-activity { background: rgba(255,255,255,0.03); }
+    .cal-icons {
+      display: flex;
+      gap: 2px;
+      align-items: center;
+      justify-content: center;
+    }
+    .cal-icon {
+      width: 14px;
+      height: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    /* ── Streak sidebar ── */
+    .streak-sidebar {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding-top: 2rem;
+    }
+    .streak-week {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      font-family: var(--font-mono);
+      font-size: 10px;
+    }
+    .streak-week.done { background: var(--accent2); color: white; }
+    .streak-week.empty { background: var(--border); color: var(--muted); }
+    .streak-week.current-fire {
+      background: var(--accent2);
+      font-size: 16px;
+      width: 32px;
+      height: 32px;
+    }
+    .streak-count {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent2);
+      margin-top: 0.25rem;
+    }
+    .streak-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    @media (max-width: 600px) {
+      .cal-wrap { grid-template-columns: 1fr; }
+      .streak-sidebar { flex-direction: row; padding-top: 0; flex-wrap: wrap; justify-content: center; }
+    }
     main { max-width: 1400px; margin: 0 auto; padding: 2rem; display: grid; gap: 1.5rem; }
 
     .overview { display: grid; grid-template-columns: 1fr 1px 1fr; border: 1px solid var(--border); background: var(--border); }
@@ -508,6 +638,130 @@ async function init() {
     </div>
   `;
   app.appendChild(timeCard);
+
+  // ── Activity calendar ────────────────────────────────────────────────────────
+  const calCard = document.createElement('div');
+  calCard.className = 'card';
+  calCard.id = 'calCard';
+  app.appendChild(calCard);
+
+  function renderCalendar(year, month) {
+    const runDates = new Set(runs.map(r => r.date));
+    const strengthDates = new Set(sessions.map(s => s.date));
+
+    // Week streak — which ISO weeks have at least one run
+    const weeksWithRun = new Set(runs.map(r => isoWeek(r.date)));
+    const now = new Date();
+    const streakWeeks = [];
+    for (let i = 7; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - now.getDay() + 1 - i * 7); // Monday of that week
+      const wk = isoWeek(d.toISOString().slice(0, 10));
+      streakWeeks.push({ wk, date: new Date(d) });
+    }
+
+    const monthNames = ['January','February','March','April','May','June',
+      'July','August','September','October','November','December'];
+    const dayLabels = ['M','T','W','T','F','S','S'];
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDow = (firstDay.getDay() + 6) % 7; // 0=Mon
+    const todayStr = now.toISOString().slice(0, 10);
+
+    // SVG icons
+    const runIcon = (color = '#e8ff5a') => `
+      <svg class="cal-icon" viewBox="0 0 14 14" fill="none">
+        <circle cx="10" cy="3" r="1.5" fill="${color}"/>
+        <path d="M7 5.5l1.5-2 2 1-1 2.5-2.5 1L5 11H3" stroke="${color}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M5 8l-2 3" stroke="${color}" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>`;
+
+    const strengthIcon = (color = '#4a9eff') => `
+      <svg class="cal-icon" viewBox="0 0 14 14" fill="none">
+        <rect x="1" y="6" width="2" height="3" rx="0.5" fill="${color}"/>
+        <rect x="11" y="6" width="2" height="3" rx="0.5" fill="${color}"/>
+        <rect x="3" y="5" width="2" height="5" rx="0.5" fill="${color}"/>
+        <rect x="9" y="5" width="2" height="5" rx="0.5" fill="${color}"/>
+        <rect x="5" y="6.5" width="4" height="2" rx="0.5" fill="${color}"/>
+      </svg>`;
+
+    // Build day cells
+    let dayCells = '';
+    // Empty cells before first day
+    for (let i = 0; i < startDow; i++) {
+      dayCells += `<div class="cal-day"></div>`;
+    }
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const isToday = dateStr === todayStr;
+      const isFuture = dateStr > todayStr;
+      const hasRun = runDates.has(dateStr);
+      const hasStrength = strengthDates.has(dateStr);
+      const hasActivity = hasRun || hasStrength;
+      const cls = ['cal-day', isToday ? 'today' : '', isFuture ? 'future' : '', hasActivity ? 'has-activity' : ''].filter(Boolean).join(' ');
+      dayCells += `
+        <div class="${cls}">
+          <div class="cal-day-num">${d}</div>
+          ${hasActivity ? `<div class="cal-icons">${hasRun ? runIcon() : ''}${hasStrength ? strengthIcon() : ''}</div>` : ''}
+        </div>`;
+    }
+
+    // Streak sidebar
+    let streakHtml = `<div class="streak-sidebar">`;
+    for (let i = 0; i < streakWeeks.length; i++) {
+      const { wk } = streakWeeks[i];
+      const isCurrentWeek = i === streakWeeks.length - 1;
+      const done = weeksWithRun.has(wk);
+      if (isCurrentWeek) {
+        streakHtml += `<div class="streak-week current-fire">🔥</div>`;
+      } else {
+        streakHtml += `<div class="streak-week ${done ? 'done' : 'empty'}">${done ? '✓' : ''}</div>`;
+      }
+    }
+    const currentStreak = summary?.current_weekly_streak ?? 0;
+    streakHtml += `
+      <div class="streak-count">${currentStreak}</div>
+      <div class="streak-label">wk streak</div>
+    </div>`;
+
+    calCard.innerHTML = `
+      <div class="card-title">Activity calendar</div>
+      <div class="cal-wrap">
+        <div>
+          <div class="cal-header">
+            <div class="cal-title">${monthNames[month]} ${year}</div>
+            <div class="cal-nav">
+              <button id="calPrev">‹</button>
+              <button id="calNext">›</button>
+            </div>
+          </div>
+          <div class="cal-grid">
+            ${dayLabels.map(l => `<div class="cal-day-label">${l}</div>`).join('')}
+            ${dayCells}
+          </div>
+          <div style="display:flex;gap:1rem;margin-top:0.75rem;font-family:var(--font-mono);font-size:10px;color:var(--text-dim)">
+            <span>${runIcon()} Run</span>
+            <span>${strengthIcon()} Strength</span>
+          </div>
+        </div>
+        ${streakHtml}
+      </div>
+    `;
+
+    $('calPrev').onclick = () => {
+      if (month === 0) renderCalendar(year - 1, 11);
+      else renderCalendar(year, month - 1);
+    };
+    $('calNext').onclick = () => {
+      const n = new Date();
+      const maxY = n.getFullYear(), maxM = n.getMonth();
+      if (year < maxY || (year === maxY && month < maxM))
+        month === 11 ? renderCalendar(year + 1, 0) : renderCalendar(year, month + 1);
+    };
+  }
+
+  renderCalendar(new Date().getFullYear(), new Date().getMonth());
 
   // ── Running section ──────────────────────────────────────────────────────────
   const runHeading = document.createElement('div');
