@@ -709,29 +709,8 @@ async function init() {
     });
 
     const distTrend = linearTrend(weekDistances);
-    new Chart($('weeklyDistChart'), {
-      type: 'bar',
-      data: { labels: weekLabelsRun, datasets: [
-        { data: weekDistances,
-          backgroundColor: weekDistances.map((v, i) => {
-            if (i === weekDistances.length - 1) return 'rgba(255,107,53,0.85)';
-            const max = Math.max(...weekDistances);
-            return `rgba(232,255,90,${0.15 + (max ? v/max : 0) * 0.65})`;
-          }), borderRadius: 2, order: 2 },
-        { type: 'line', data: distTrend, borderColor: 'rgba(255,107,53,0.7)', borderWidth: 1.5,
-          borderDash: [4,3], pointRadius: 0, fill: false, tension: 0, order: 1 }
-      ] },
-      options: { ...chartOpts({ layout: { padding: { top: 14 } } }), scales: {
-        x: { grid: { display: false }, ticks: { color: '#6b6b78' } },
-        y: { grid: { color: '#1f1f24' }, ticks: { color: '#6b6b78', callback: v => `${v}km` } }
-      }, plugins: { ...chartOpts().plugins, tooltip: { ...chartOpts().plugins.tooltip,
-        callbacks: { label: ctx => ctx.datasetIndex === 0 ? ` ${ctx.parsed.y} km` : ` Trend` } } },
-      } 
-    });
-
-    // Month boundary lines + labels via afterDraw plugin
-    const monthLinePlugin = {
-      id: 'monthLines',
+    const weeklyMonthLinePlugin = {
+      id: 'weeklyMonthLines',
       afterDraw(chart) {
         const { ctx, chartArea, scales } = chart;
         ctx.save();
@@ -755,7 +734,33 @@ async function init() {
         ctx.restore();
       }
     };
-    Chart.register(monthLinePlugin);
+
+    new Chart($('weeklyDistChart'), {
+      type: 'line',
+      data: { labels: weekLabelsRun, datasets: [
+        { data: weekDistances,
+          borderColor: 'rgba(232,255,90,0.9)',
+          backgroundColor: 'rgba(232,255,90,0.18)',
+          pointBackgroundColor: weekDistances.map((_, i) =>
+            i === weekDistances.length - 1 ? 'rgba(255,107,53,1)' : 'rgba(232,255,90,0.9)'),
+          pointBorderColor: 'transparent',
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          borderWidth: 2,
+          tension: 0.35,
+          fill: true,
+          order: 2 },
+        { data: distTrend, borderColor: 'rgba(255,107,53,0.6)', borderWidth: 1.5,
+          borderDash: [4,3], pointRadius: 0, fill: false, tension: 0, order: 1 }
+      ] },
+      options: { ...chartOpts({ layout: { padding: { top: 14 } } }), scales: {
+        x: { grid: { display: false }, ticks: { color: '#6b6b78' } },
+        y: { grid: { color: '#1f1f24' }, ticks: { color: '#6b6b78', callback: v => `${v}km` }, beginAtZero: true }
+      }, plugins: { ...chartOpts().plugins, tooltip: { ...chartOpts().plugins.tooltip,
+        callbacks: { label: ctx => ctx.datasetIndex === 0 ? ` ${ctx.parsed.y} km` : ` Trend` } } },
+      },
+      plugins: [weeklyMonthLinePlugin]
+    });
 
     if ($('ltChart') && ltData.length > 1) {
       const ltSorted = [...ltData].sort((a, b) => a.date.localeCompare(b.date));
@@ -803,7 +808,6 @@ async function init() {
         ctx.restore();
       }
     };
-    Chart.register(strengthMonthLinePlugin);
 
     new Chart($('strengthCountChart'), {
       type: 'bar',
@@ -815,11 +819,12 @@ async function init() {
         { type: 'line', data: strengthTrend, borderColor: 'rgba(255,107,53,0.7)', borderWidth: 1.5,
           borderDash: [4,3], pointRadius: 0, fill: false, tension: 0, order: 1 }
       ] },
-      options: { ...chartOpts(), scales: {
+      options: { ...chartOpts({ layout: { padding: { top: 14 } } }), scales: {
         x: { grid: { display: false }, ticks: { color: '#6b6b78' } },
         y: { grid: { color: '#1f1f24' }, ticks: { color: '#6b6b78', stepSize: 1 } }
       }, plugins: { ...chartOpts().plugins, tooltip: { ...chartOpts().plugins.tooltip,
-        callbacks: { label: ctx => ctx.datasetIndex === 0 ? ` ${ctx.parsed.y} session${ctx.parsed.y !== 1 ? 's' : ''}` : ` Trend` } }} }
+        callbacks: { label: ctx => ctx.datasetIndex === 0 ? ` ${ctx.parsed.y} session${ctx.parsed.y !== 1 ? 's' : ''}` : ` Trend` } }} },
+      plugins: [strengthMonthLinePlugin]
     });
   });
 }
