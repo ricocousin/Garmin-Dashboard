@@ -75,6 +75,38 @@
       color: var(--accent);
       font-family: var(--font-mono);
     }
+    .coach-quiet-toggle {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--muted);
+      cursor: pointer;
+      margin-top: 0.4rem;
+      user-select: none;
+      width: fit-content;
+    }
+    .coach-quiet-toggle:hover { color: var(--text-dim); }
+    .coach-quiet-list {
+      display: none;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin-top: 0.3rem;
+      padding-top: 0.6rem;
+      border-top: 1px solid var(--border);
+    }
+    .coach-quiet-list.open { display: flex; }
+    .coach-quiet-item {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      padding-left: 1.1rem;
+      position: relative;
+    }
+    .coach-quiet-item::before {
+      content: '·';
+      position: absolute;
+      left: 0.3rem;
+      color: var(--muted);
+    }
     .coach-updated {
       font-family: var(--font-mono);
       font-size: 10px;
@@ -380,12 +412,35 @@ async function init() {
   if (coachData && coachData.insights && coachData.insights.length > 0) {
     const coachCard = document.createElement('div');
     coachCard.className = 'coach-card';
+    const quietNotes = coachData.quiet || [];
+    const quietHtml = quietNotes.length > 0 ? `
+      <div class="coach-quiet-toggle" id="coachQuietToggle">+ ${quietNotes.length} other categories checked</div>
+      <div class="coach-quiet-list" id="coachQuietList">
+        ${quietNotes.map(q => `<div class="coach-quiet-item">${q}</div>`).join('')}
+      </div>
+    ` : '';
     coachCard.innerHTML = `
       <div class="coach-header"><span class="coach-dot"></span>Training status</div>
       ${coachData.insights.map(i => `<div class="coach-insight">${i}</div>`).join('')}
+      ${quietHtml}
       <div class="coach-updated">Generated ${coachData.last_updated}</div>
     `;
     app.appendChild(coachCard);
+
+    if (quietNotes.length > 0) {
+      requestAnimationFrame(() => {
+        const toggle = $('coachQuietToggle');
+        const list = $('coachQuietList');
+        if (toggle && list) {
+          toggle.addEventListener('click', () => {
+            list.classList.toggle('open');
+            toggle.textContent = list.classList.contains('open')
+              ? '− Hide other categories'
+              : `+ ${quietNotes.length} other categories checked`;
+          });
+        }
+      });
+    }
   }
 
   // ── Combined overview ────────────────────────────────────────────────────────
