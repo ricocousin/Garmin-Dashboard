@@ -305,3 +305,229 @@ with open(lt_file, "w", encoding="utf-8") as f:
     json.dump(lt_records, f, indent=2)
 
 print(f"Done! {len(all_run_rows)} runs, {len(all_strength_rows)} strength sessions. Mode: {'full' if is_full_refresh else 'incremental'}")
+
+
+# ── Coach evaluator block ─────────────────────────────────────────────────────
+# Rules-based training status summary. No external API calls — pure logic
+# over data we already have. Each threshold below has a comment explaining
+# why that specific number was chosen, so it's easy to revisit and tune.
+ 
+def parse_pace_sec(pace_str):
+    if not pace_str:
+        return None
+    try:
+        m, s = pace_str.split(":")
+        return int(m) * 60 + int(s)
+    except Exception:
+        return None
+ 
+def parse_moving_time_mins(time_str):
+    if not time_str:
+        return 0
+    parts = time_str.split(":")
+    if len(parts) == 3:
+        h, m, s = map(int, parts)
+        return h * 60 + m + s / 60
+    return 0
+ 
+all_runs_sorted = sorted(all_run_rows, key=lambda x: x.get("date", ""))
+all_strength_sorted = sorted(all_strength_rows, key=lambda x: x.get("date", ""))
+ 
+today_date = today.date()
+insights = []
+ 
+# ── 1. Volume trend: last 4 weeks vs the 4 weeks before that ───────────────────
+# WHY 4 WEEKS: a single week is too noisy (one big run skews it), but a full
+# 8-12 week window reacts too slowly to genuine recent changes. 4 weeks is
+# roughly one training "block" and is a common coaching convention for
+# short-term load comparison. The comparison window is also 4 weeks so both
+# halves are equal length and the percentage change is meaningful.
+def distance_in_window(start_days_ago, end_days_ago):
+    start = today_date - timedelta(days=start_days_ago)
+    end = today_date - timedelta(days=end_days_ago)
+    return sum(
+        float(r.get("distance_km") or 0) for r in all_runs_sorted
+        if start <= datetime.strptime(r["date"], "%Y-%m-%d").date() <= end
+    )
+ 
+recent_4wk = distance_in_window(28, 1)
+prior_4wk = distance_in_window(56, 29)
+ 
+if prior_4wk > 0:
+    volume_change_pct = ((recent_4wk - prior_4wk) / prior_4wk) * 100
+    # WHY ±15%: smaller than this is within normal week-to-week variance for
+    # most runners and not worth commenting on. Above 15% in either direction
+    # is a meaningful, intentional-feeling shift (a build phase or a taper/dip).
+    if volume_change_pct > 15:
+        insights.append(f"Volume is trending up — {recent_4wk:.0f} km over the last 4 weeks vs {prior_4wk:.0f} km the 4 weeks before, a {volume_change_pct:.0f}% increase.")
+    elif volume_change_pct < -15:
+        insights.append(f"Volume has dropped — {recent_4wk:.0f} km over the last 4 weeks vs {prior_4wk:.0f} km the 4 weeks before, a {abs(volume_change_pct):.0f}% decrease.")
+ 
+# ── 2. PB proximity: any run in the last 30 days within X% of a category PB ────
+# WHY 30 DAYS: long enough to catch a recent strong block, short enough that
+# "recent" still feels recent rather than dredging up something from 4 months ago.
+# WHY 3%: a PB-category pace category is fairly forgiving since these are
+# whole-run averages, not exact splits. 3% is tight enough to mean "genuinely
+# close" (e.g. 4:30 vs 4:23 /km) without flagging routine training runs.
+def best_pace_for_min_distance(min_dist):
+    eligible = [r for r in all_runs_sorted if float(r.get("distance_km") or 0) >= min_dist and r.get("avg_pace_min_km")]
+    if not eligible:
+        return None
+    return min(parse_pace_sec(r["avg_pace_min_km"]) for r in eligible)
+ 
+pb_categories = [("5K", 4), ("10K", 8), ("Half", 18), ("Marathon", 38), ("50K", 45)]
+recent_cutoff = today_date - timedelta(days=30)
+close_calls = []
+ 
+for label, min_dist in pb_categories:
+    pb_sec = best_pace_for_min_distance(min_dist)
+    if not pb_sec:
+        continue
+    recent_eligible = [
+        r for r in all_runs_sorted
+        if float(r.get("distance_km") or 0) >= min_dist
+        and r.get("avg_pace_min_km")
+        and datetime.strptime(r["date"], "%Y-%m-%d").date() >= recent_cutoff
+    ]
+    for r in recent_eligible:
+        r_sec = parse_pace_sec(r["avg_pace_min_km"])
+        if r_sec and r_sec > pb_sec:  # not the PB itself
+            pct_off = ((r_sec - pb_sec) / pb_sec) * 100
+            if pct_off <= 3:
+                close_calls.append((label, r["date"], pct_off))
+ 
+if close_calls:
+    label, date, pct_off = min(close_calls, key=lambda x: x[2])
+    insights.append(f"Close call on your {label} best — within {pct_off:.1f}% of your PB pace on {date}.")
+ 
+# ── 3. LT trend: latest reading vs ~30 days prior ───────────────────────────────
+# WHY 30 DAYS: lactate threshold genuinely shifts over weeks, not days — a
+# day-to-day comparison would just be noise from a single test. 30 days gives
+# the adaptation enough time to show up while still being "recent."
+# WHY ±3 SEC/KM: LT pace readings from this kind of estimate carry some natural
+# noise. A few seconds either way isn't meaningful; we want a change big enough
+# to actually represent a fitness shift, not measurement jitter.
+if os.path.exists(lt_file):
+    with open(lt_file, "r", encoding="utf-8") as f:
+        lt_history = json.load(f)
+    # filter to plausible values only (matches dashboard's own sanity filter)
+    lt_history = [r for r in lt_history if r.get("lt_pace") and 120 < (parse_pace_sec(r["lt_pace"]) or 0) < 900]
+    lt_history_sorted = sorted(lt_history, key=lambda x: x["date"])
+    if len(lt_history_sorted) >= 2:
+        latest_lt = lt_history_sorted[-1]
+        cutoff_30d = today_date - timedelta(days=30)
+        older_candidates = [r for r in lt_history_sorted if datetime.strptime(r["date"], "%Y-%m-%d").date() <= cutoff_30d]
+        if older_candidates:
+            baseline_lt = older_candidates[-1]
+            latest_sec = parse_pace_sec(latest_lt["lt_pace"])
+            baseline_sec = parse_pace_sec(baseline_lt["lt_pace"])
+            if latest_sec and baseline_sec:
+                diff = baseline_sec - latest_sec  # positive = faster (improved)
+                if diff > 3:
+                    insights.append(f"Lactate threshold has improved — {latest_lt['lt_pace']} /km now vs {baseline_lt['lt_pace']} /km on {baseline_lt['date']}.")
+                elif diff < -3:
+                    insights.append(f"Lactate threshold has eased — {latest_lt['lt_pace']} /km now vs {baseline_lt['lt_pace']} /km on {baseline_lt['date']}.")
+ 
+# ── 4. Training balance: strength sessions vs runs, recent vs YTD norm ─────────
+# WHY 3 WEEKS: short enough to catch "I haven't lifted in a while" while it's
+# still actionable, long enough to not flag a single rest week as a problem.
+# WHY ±0.3 RATIO POINTS: the run:strength ratio naturally fluctuates week to
+# week. A shift of 0.3 or more in the ratio (e.g. from 1.5 runs-per-lift to
+# 1.8+) represents a real behavioural change, not noise.
+def sessions_in_window(rows, start_days_ago, end_days_ago):
+    start = today_date - timedelta(days=start_days_ago)
+    end = today_date - timedelta(days=end_days_ago)
+    return len([
+        r for r in rows
+        if start <= datetime.strptime(r["date"], "%Y-%m-%d").date() <= end
+    ])
+ 
+recent_runs_3wk = sessions_in_window(all_runs_sorted, 21, 1)
+recent_strength_3wk = sessions_in_window(all_strength_sorted, 21, 1)
+ytd_runs = len(runs_this_year)
+ytd_strength = len(strength_this_year)
+ 
+if recent_strength_3wk == 0 and recent_runs_3wk >= 3:
+    insights.append(f"No strength sessions in the last 3 weeks despite {recent_runs_3wk} runs — strength training has dropped off.")
+elif ytd_strength > 0 and ytd_runs > 0:
+    ytd_ratio = ytd_runs / ytd_strength
+    recent_ratio = (recent_runs_3wk / recent_strength_3wk) if recent_strength_3wk > 0 else None
+    if recent_ratio and abs(recent_ratio - ytd_ratio) > 0.3:
+        if recent_ratio > ytd_ratio:
+            insights.append(f"Running has been prioritised over strength recently — {recent_runs_3wk} runs to {recent_strength_3wk} strength sessions in the last 3 weeks, vs a {ytd_ratio:.1f}:1 norm this year.")
+ 
+# ── 5. Activity silence: days since last run / last strength session ───────────
+# WHY 7 DAYS for running: at 4x/week training frequency, 7 days without a run
+# is roughly double the normal gap and worth flagging — shorter would trigger
+# on completely normal rest days.
+# WHY 10 DAYS for strength: strength sessions are naturally less frequent than
+# runs in this setup, so the silence threshold is set a bit longer to avoid
+# false positives on a normal lighter week.
+if all_runs_sorted:
+    last_run_date = datetime.strptime(all_runs_sorted[-1]["date"], "%Y-%m-%d").date()
+    days_since_run = (today_date - last_run_date).days
+    if days_since_run >= 7:
+        insights.append(f"It's been {days_since_run} days since your last run ({last_run_date}).")
+ 
+if all_strength_sorted:
+    last_strength_date = datetime.strptime(all_strength_sorted[-1]["date"], "%Y-%m-%d").date()
+    days_since_strength = (today_date - last_strength_date).days
+    if days_since_strength >= 10:
+        insights.append(f"It's been {days_since_strength} days since your last strength session ({last_strength_date}).")
+ 
+# ── 6. Year-over-year pace of accumulation ──────────────────────────────────────
+# WHY: compares how much distance you'd covered by "today's date" last year
+# vs this year, giving a fair apples-to-apples comparison regardless of when
+# in the year it is. WHY ±10%: tighter than the 4-week volume threshold
+# because this is a much longer baseline (months of data), so even a modest
+# percentage difference represents a real, sustained pattern rather than
+# short-term noise.
+try:
+    today_last_year = today_date.replace(year=today_date.year - 1)
+except ValueError:
+    today_last_year = today_date.replace(year=today_date.year - 1, day=28)
+ 
+dist_this_year_to_date = sum(
+    float(r.get("distance_km") or 0) for r in runs_this_year
+)
+dist_last_year_to_date = sum(
+    float(r.get("distance_km") or 0) for r in runs_prev_year
+    if datetime.strptime(r["date"], "%Y-%m-%d").date() <= today_last_year
+)
+ 
+if dist_last_year_to_date > 0:
+    yoy_pct = ((dist_this_year_to_date - dist_last_year_to_date) / dist_last_year_to_date) * 100
+    if abs(yoy_pct) > 10:
+        direction = "ahead of" if yoy_pct > 0 else "behind"
+        insights.append(f"You're {abs(yoy_pct):.0f}% {direction} last year's pace — {dist_this_year_to_date:.0f} km vs {dist_last_year_to_date:.0f} km by this date in {today_last_year.year}.")
+ 
+# ── Assemble final summary ──────────────────────────────────────────────────────
+# WHY MAX 4 INSIGHTS: more than this starts to feel like a wall of text rather
+# than a quick scan. We prioritise the most "actionable" categories first —
+# silence and close-call PBs are time-sensitive, trends are more background.
+priority_order = ["last run", "last strength", "Close call", "Volume is trending", "Volume has dropped",
+                   "Lactate threshold", "strength training has dropped off", "prioritised over strength",
+                   "ahead of", "behind"]
+ 
+def priority_key(insight):
+    for i, keyword in enumerate(priority_order):
+        if keyword in insight:
+            return i
+    return len(priority_order)
+ 
+insights_sorted = sorted(insights, key=priority_key)[:4]
+ 
+if not insights_sorted:
+    insights_sorted = ["Training is steady — no major shifts in volume, balance, or pace recently."]
+ 
+coach_summary = {
+    "last_updated": str(today_date),
+    "insights": insights_sorted
+}
+ 
+with open("coach_summary.json", "w", encoding="utf-8") as f:
+    json.dump(coach_summary, f, indent=2)
+ 
+print(f"Coach summary: {len(insights_sorted)} insight(s) generated")
+for i in insights_sorted:
+    print(f"  - {i}")
