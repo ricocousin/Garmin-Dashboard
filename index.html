@@ -544,6 +544,27 @@ async function init() {
   const sWeekKeys = Object.keys(sWeekMap).sort().slice(-16);
   const sWeekCounts = sWeekKeys.map(k => sWeekMap[k].count);
   const sWeekLabels = sWeekKeys.map(k => k.split('-')[1]);
+  const sWeekMonthBoundary = sWeekKeys.map((k, i) => {
+    if (i === 0) return false;
+    const curMonth = weekStartDate(k).getMonth();
+    const prevMonth = weekStartDate(sWeekKeys[i - 1]).getMonth();
+    return curMonth !== prevMonth;
+  });
+
+  // Total sessions per month for the label badges
+  const sessionsByMonthKey = {};
+  sessions.forEach(s => {
+    const d = new Date(s.date + 'T00:00:00');
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    sessionsByMonthKey[key] = (sessionsByMonthKey[key] || 0) + 1;
+  });
+  const sWeekMonthLabel = sWeekKeys.map(k => {
+    const d = weekStartDate(k);
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    const name = monthNamesShort[d.getMonth()];
+    const count = sessionsByMonthKey[key] || 0;
+    return `${name} (${count})`;
+  });
 
   const sCountCard = document.createElement('div');
   sCountCard.className = 'card';
@@ -552,34 +573,6 @@ async function init() {
     <div class="chart-wrap"><canvas id="strengthCountChart"></canvas></div>
   `;
   app.appendChild(sCountCard);
-
-  const monthlyMap = {};
-  yearSessions.forEach(s => {
-    const mo = new Date(s.date + 'T00:00:00').toLocaleString('en', { month: 'short' });
-    if (!monthlyMap[mo]) monthlyMap[mo] = { count: 0, mins: 0 };
-    monthlyMap[mo].count++;
-    monthlyMap[mo].mins += parseFloat(s.duration_min) || 0;
-  });
-
-  const monthlyCard = document.createElement('div');
-  monthlyCard.className = 'card';
-  monthlyCard.innerHTML = `
-    <div class="card-title">Monthly summary ${thisYear}</div>
-    <table class="runs-table">
-      <thead><tr><th>Month</th><th>Sessions</th><th>Total time</th><th>Avg session</th></tr></thead>
-      <tbody>
-        ${Object.entries(monthlyMap).map(([mo, d]) => `
-          <tr>
-            <td class="mono" style="color:var(--text-dim)">${mo}</td>
-            <td class="mono">${d.count}</td>
-            <td class="mono">${Math.round(d.mins)} min</td>
-            <td class="mono">${Math.round(d.mins / d.count)} min</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  `;
-  app.appendChild(monthlyCard);
 
   // ── Render charts ─────────────────────────────────────────────────────────────
   requestAnimationFrame(() => {
@@ -670,6 +663,33 @@ async function init() {
     }
 
     const strengthTrend = linearTrend(sWeekCounts);
+    const strengthMonthLinePlugin = {
+      id: 'strengthMonthLines',
+      afterDraw(chart) {
+        const { ctx, chartArea, scales } = chart;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.setLineDash([3,3]);
+        ctx.font = '9px "DM Mono", monospace';
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx.textAlign = 'left';
+        sWeekMonthBoundary.forEach((isBoundary, i) => {
+          if (isBoundary) {
+            const x = scales.x.getPixelForValue(i) - (scales.x.getPixelForValue(1) - scales.x.getPixelForValue(0)) / 2;
+            ctx.beginPath();
+            ctx.moveTo(x, chartArea.top);
+            ctx.lineTo(x, chartArea.bottom);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillText(sWeekMonthLabel[i], x + 4, chartArea.top + 10);
+            ctx.setLineDash([3,3]);
+          }
+        });
+        ctx.restore();
+      }
+    };
+    Chart.register(strengthMonthLinePlugin);
+
     new Chart($('strengthCountChart'), {
       type: 'bar',
       data: { labels: sWeekLabels, datasets: [
