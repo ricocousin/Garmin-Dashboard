@@ -267,14 +267,6 @@ if os.path.exists(lt_file):
     with open(lt_file, "r", encoding="utf-8") as f:
         lt_records = json.load(f)
 
-# ── Lactate threshold ─────────────────────────────────────────────────────────
-lt_records = []
-lt_file = "lactate.json"
-
-if os.path.exists(lt_file):
-    with open(lt_file, "r", encoding="utf-8") as f:
-        lt_records = json.load(f)
-
 try:
     lt = client.get_lactate_threshold()
     lt_data = lt.get("speed_and_heart_rate", {})
