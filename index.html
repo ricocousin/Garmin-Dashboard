@@ -34,6 +34,53 @@
     .overview { display: grid; grid-template-columns: 1fr 1px 1fr; border: 1px solid var(--border); background: var(--border); }
     .overview-half { background: var(--border); display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1px; }
     .overview-divider { background: var(--border); width: 1px; }
+
+    /* ── Coach evaluator ── */
+    .coach-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .coach-header {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .coach-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+    }
+    .coach-insight {
+      font-family: var(--font-body);
+      font-size: 13.5px;
+      color: var(--text);
+      line-height: 1.5;
+      padding-left: 1.1rem;
+      position: relative;
+    }
+    .coach-insight::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-family: var(--font-mono);
+    }
+    .coach-updated {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 0.25rem;
+    }
     .overview-label { grid-column: 1 / -1; background: var(--surface); font-family: var(--font-mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em; padding: 0.5rem 1.5rem; color: var(--text-dim); border-bottom: 1px solid var(--border); }
     .overview-label.run { color: var(--accent); }
     .overview-label.lift { color: var(--strength); }
@@ -259,11 +306,12 @@ function calcZones(ltPaceStr, ltHr) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function init() {
-  const [runsRaw, strengthRaw, summary, ltDataRaw] = await Promise.all([
+  const [runsRaw, strengthRaw, summary, ltDataRaw, coachData] = await Promise.all([
     fetch('runs.csv').then(r => r.text()),
     fetch('strength.csv').then(r => r.text()).catch(() => null),
     fetch('summary.json').then(r => r.json()).catch(() => null),
-    fetch('lactate.json').then(r => r.json()).catch(() => [])
+    fetch('lactate.json').then(r => r.json()).catch(() => []),
+    fetch('coach_summary.json').then(r => r.json()).catch(() => null)
   ]);
 
   const { data: runRows } = Papa.parse(runsRaw, { header: true, skipEmptyLines: true });
@@ -327,6 +375,18 @@ async function init() {
 
   const latestLT = ltData.length > 0 ? ltData[ltData.length - 1] : null;
   const zones = latestLT ? calcZones(latestLT.lt_pace, latestLT.lt_hr) : null;
+
+  // ── Coach evaluator ───────────────────────────────────────────────────────────
+  if (coachData && coachData.insights && coachData.insights.length > 0) {
+    const coachCard = document.createElement('div');
+    coachCard.className = 'coach-card';
+    coachCard.innerHTML = `
+      <div class="coach-header"><span class="coach-dot"></span>Training status</div>
+      ${coachData.insights.map(i => `<div class="coach-insight">${i}</div>`).join('')}
+      <div class="coach-updated">Generated ${coachData.last_updated}</div>
+    `;
+    app.appendChild(coachCard);
+  }
 
   // ── Combined overview ────────────────────────────────────────────────────────
   const overview = document.createElement('div');
