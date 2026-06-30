@@ -78,11 +78,11 @@
     .lt-label { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); }
 
     .zones { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem; }
-    .zone { display: grid; grid-template-columns: 75px 1fr auto; align-items: center; gap: 0.75rem; font-family: var(--font-mono); font-size: 11px; }
-    .zone-name { color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+    .zone { display: grid; grid-template-columns: 70px 1fr 150px; align-items: center; gap: 0.75rem; font-family: var(--font-mono); font-size: 11px; }
+    .zone-name { color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
     .zone-bar-track { height: 4px; background: var(--muted); border-radius: 2px; overflow: hidden; }
     .zone-bar-fill { height: 100%; border-radius: 2px; }
-    .zone-pace { color: var(--text); white-space: nowrap; }
+    .zone-pace { color: var(--text); white-space: nowrap; text-align: right; min-width: 170px; }
 
     .runs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .runs-table th { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); text-align: left; padding: 0 0.75rem 0.75rem 0; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -232,7 +232,8 @@ function calcBestEfforts(runs) {
   const longest = runs.reduce((a, b) =>
     (parseFloat(a.distance_km) || 0) > (parseFloat(b.distance_km) || 0) ? a : b, runs[0]);
   results.push({
-    label: 'Longest', pace: '—', time: fmtDuration(longest?.moving_time),
+    label: 'Longest', pace: longest?.avg_pace_min_km ? longest.avg_pace_min_km + ' /km' : '—',
+    time: fmtDuration(longest?.moving_time),
     dist: fmt(longest?.distance_km, 1) + ' km', date: longest?.date, name: longest?.name || ''
   });
 
@@ -248,11 +249,11 @@ function calcZones(ltPaceStr, ltHr) {
   const z3HrMax = ltHr ? Math.round(ltHr * 0.99) : null;
   const z4HrMax = ltHr ? Math.round(ltHr * 1.05) : null;
   return [
-    { name: 'Z1 Easy',      pace: `> ${secToPace(ltSec + 75)}`,                          hr: ltHr ? `< ${z1HrMax} bpm` : '', color: '#4a9eff', pct: 40 },
-    { name: 'Z2 Aerobic',   pace: `${secToPace(ltSec + 45)}–${secToPace(ltSec + 74)}`,    hr: ltHr ? `${z1HrMax}–${z2HrMax} bpm` : '', color: '#7bc67e', pct: 60 },
-    { name: 'Z3 Tempo',     pace: `${secToPace(ltSec + 10)}–${secToPace(ltSec + 44)}`,    hr: ltHr ? `${z2HrMax}–${z3HrMax} bpm` : '', color: '#e8ff5a', pct: 78 },
-    { name: 'Z4 Threshold', pace: `${secToPace(ltSec - 10)}–${secToPace(ltSec + 9)}`,     hr: ltHr ? `${z3HrMax}–${z4HrMax} bpm` : '', color: '#ff9f40', pct: 90 },
-    { name: 'Z5 Hard',      pace: `< ${secToPace(ltSec - 11)}`,                            hr: ltHr ? `> ${z4HrMax} bpm` : '', color: '#ff6b35', pct: 100 },
+    { name: 'Z1 EASY',      pace: `> ${secToPace(ltSec + 75)}`,                          hr: ltHr ? `< ${z1HrMax} bpm` : '', color: '#4a9eff', pct: 40 },
+    { name: 'Z2 AEROBIC',   pace: `${secToPace(ltSec + 45)}–${secToPace(ltSec + 74)}`,    hr: ltHr ? `${z1HrMax}–${z2HrMax} bpm` : '', color: '#7bc67e', pct: 60 },
+    { name: 'Z3 TEMPO',     pace: `${secToPace(ltSec + 10)}–${secToPace(ltSec + 44)}`,    hr: ltHr ? `${z2HrMax}–${z3HrMax} bpm` : '', color: '#e8ff5a', pct: 78 },
+    { name: 'Z4 LT',        pace: `${secToPace(ltSec - 10)}–${secToPace(ltSec + 9)}`,     hr: ltHr ? `${z3HrMax}–${z4HrMax} bpm` : '', color: '#ff9f40', pct: 90 },
+    { name: 'Z5 HARD',      pace: `< ${secToPace(ltSec - 11)}`,                            hr: ltHr ? `> ${z4HrMax} bpm` : '', color: '#ff6b35', pct: 100 },
   ];
 }
 
@@ -348,11 +349,6 @@ async function init() {
         <span class="stat-value accent">${summary?.current_weekly_streak ?? '—'} <small style="font-size:.9rem;color:var(--text-dim)">wks</small></span>
         <span class="stat-sub">Best: ${summary?.longest_weekly_streak ?? '—'} wks</span>
       </div>
-      <div class="stat">
-        <span class="stat-label">Last run</span>
-        <span class="stat-value" style="font-size:1.2rem">${runs[0]?.date ?? '—'}</span>
-        <span class="stat-sub">${fmt(runs[0]?.distance_km)} km · ${runs[0]?.avg_pace_min_km ?? '—'} /km</span>
-      </div>
     </div>
     <div class="overview-divider"></div>
     <div class="overview-half">
@@ -372,11 +368,6 @@ async function init() {
         <span class="stat-value blue">${summary?.current_strength_weekly_streak ?? '—'} <small style="font-size:.9rem;color:var(--text-dim)">wks</small></span>
         <span class="stat-sub">Best: ${summary?.longest_strength_weekly_streak ?? '—'} wks</span>
       </div>
-      <div class="stat">
-        <span class="stat-label">Last session</span>
-        <span class="stat-value" style="font-size:1.2rem">${sessions[0]?.date ?? '—'}</span>
-        <span class="stat-sub">${sessions[0]?.elapsed_time ?? '—'}</span>
-      </div>
     </div>
   `;
   app.appendChild(overview);
@@ -390,11 +381,6 @@ async function init() {
   const timeCard = document.createElement('div');
   timeCard.className = 'time-card';
   timeCard.innerHTML = `
-    <div class="time-stat">
-      <span class="stat-label">Total ${thisYear}</span>
-      <span class="stat-value orange" style="font-family:var(--font-display);font-size:1.8rem;font-weight:700;line-height:1">${fmtHrs(totalActivityMinsYear)}</span>
-      <span class="stat-sub">running + strength combined</span>
-    </div>
     <div class="time-stat">
       <span class="stat-label">Avg / week (${thisYear})</span>
       <span class="stat-value" style="font-family:var(--font-display);font-size:1.8rem;font-weight:700;line-height:1">${fmtHrs(avgActivityMinsPerWeek)}</span>
@@ -512,6 +498,8 @@ async function init() {
     const prevMonth = weekStartDate(weekKeys[i - 1]).getMonth();
     return curMonth !== prevMonth;
   });
+  const monthNamesShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const weekMonthLabel = weekKeys.map(k => monthNamesShort[weekStartDate(k).getMonth()]);
 
   const grid1 = document.createElement('div');
   grid1.className = 'grid-2';
@@ -625,7 +613,7 @@ async function init() {
         { type: 'line', data: distTrend, borderColor: 'rgba(255,107,53,0.7)', borderWidth: 1.5,
           borderDash: [4,3], pointRadius: 0, fill: false, tension: 0, order: 1 }
       ] },
-      options: { ...chartOpts(), scales: {
+      options: { ...chartOpts({ layout: { padding: { top: 14 } } }), scales: {
         x: { grid: { display: false }, ticks: { color: '#6b6b78' } },
         y: { grid: { color: '#1f1f24' }, ticks: { color: '#6b6b78', callback: v => `${v}km` } }
       }, plugins: { ...chartOpts().plugins, tooltip: { ...chartOpts().plugins.tooltip,
@@ -633,7 +621,7 @@ async function init() {
       } 
     });
 
-    // Month boundary lines via afterDraw plugin
+    // Month boundary lines + labels via afterDraw plugin
     const monthLinePlugin = {
       id: 'monthLines',
       afterDraw(chart) {
@@ -641,6 +629,9 @@ async function init() {
         ctx.save();
         ctx.strokeStyle = 'rgba(255,255,255,0.15)';
         ctx.setLineDash([3,3]);
+        ctx.font = '9px "DM Mono", monospace';
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.textAlign = 'left';
         weekMonthBoundary.forEach((isBoundary, i) => {
           if (isBoundary) {
             const x = scales.x.getPixelForValue(i) - (scales.x.getPixelForValue(1) - scales.x.getPixelForValue(0)) / 2;
@@ -648,6 +639,9 @@ async function init() {
             ctx.moveTo(x, chartArea.top);
             ctx.lineTo(x, chartArea.bottom);
             ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillText(weekMonthLabel[i], x + 4, chartArea.top + 10);
+            ctx.setLineDash([3,3]);
           }
         });
         ctx.restore();
@@ -675,17 +669,22 @@ async function init() {
       });
     }
 
+    const strengthTrend = linearTrend(sWeekCounts);
     new Chart($('strengthCountChart'), {
       type: 'bar',
-      data: { labels: sWeekLabels, datasets: [{ data: sWeekCounts,
-        backgroundColor: sWeekCounts.map((_, i) =>
-          i === sWeekCounts.length - 1 ? 'rgba(255,107,53,0.85)' : 'rgba(74,158,255,0.25)'),
-        borderRadius: 2 }] },
+      data: { labels: sWeekLabels, datasets: [
+        { data: sWeekCounts,
+          backgroundColor: sWeekCounts.map((_, i) =>
+            i === sWeekCounts.length - 1 ? 'rgba(255,107,53,0.85)' : 'rgba(74,158,255,0.25)'),
+          borderRadius: 2, order: 2 },
+        { type: 'line', data: strengthTrend, borderColor: 'rgba(255,107,53,0.7)', borderWidth: 1.5,
+          borderDash: [4,3], pointRadius: 0, fill: false, tension: 0, order: 1 }
+      ] },
       options: { ...chartOpts(), scales: {
         x: { grid: { display: false }, ticks: { color: '#6b6b78' } },
         y: { grid: { color: '#1f1f24' }, ticks: { color: '#6b6b78', stepSize: 1 } }
       }, plugins: { ...chartOpts().plugins, tooltip: { ...chartOpts().plugins.tooltip,
-        callbacks: { label: ctx => ` ${ctx.parsed.y} session${ctx.parsed.y !== 1 ? 's' : ''}` } }} }
+        callbacks: { label: ctx => ctx.datasetIndex === 0 ? ` ${ctx.parsed.y} session${ctx.parsed.y !== 1 ? 's' : ''}` : ` Trend` } }} }
     });
   });
 }
