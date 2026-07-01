@@ -31,20 +31,17 @@
     .last-updated { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; }
 
     /* ── Activity calendar ── */
-    .cal-wrap {
-      display: flex;
-      gap: 1rem;
-    }
     .cal-with-streak {
-      display: flex;
-      gap: 0.5rem;
-      align-items: flex-start;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px;
+      align-items: start;
     }
     .cal-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 1rem;
+      margin-bottom: 0.75rem;
     }
     .cal-title {
       font-family: var(--font-display);
@@ -60,8 +57,8 @@
       background: var(--border);
       border: none;
       color: var(--text-dim);
-      width: 24px;
-      height: 24px;
+      width: 22px;
+      height: 22px;
       border-radius: 4px;
       cursor: pointer;
       font-family: var(--font-mono);
@@ -74,62 +71,58 @@
     .cal-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      gap: 3px;
+      gap: 2px;
     }
     .cal-day-label {
       font-family: var(--font-mono);
-      font-size: 10px;
+      font-size: 9px;
       color: var(--text-dim);
       text-align: center;
-      padding-bottom: 0.4rem;
+      padding: 2px 0 4px;
       text-transform: uppercase;
     }
     .cal-day {
-      aspect-ratio: 1;
+      height: 36px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      border-radius: 6px;
-      position: relative;
+      border-radius: 4px;
       min-width: 0;
-      gap: 2px;
+      gap: 1px;
     }
     .cal-day-num {
       font-family: var(--font-mono);
-      font-size: 11px;
+      font-size: 10px;
       color: var(--text-dim);
       line-height: 1;
     }
     .cal-day.today { background: var(--border); }
     .cal-day.today .cal-day-num { color: var(--text-hi); }
-    .cal-day.future .cal-day-num { color: var(--muted); opacity: 0.4; }
+    .cal-day.future .cal-day-num { color: var(--muted); opacity: 0.35; }
     .cal-day.has-activity { background: rgba(255,255,255,0.03); }
     .cal-icons {
       display: flex;
-      gap: 2px;
+      gap: 1px;
       align-items: center;
       justify-content: center;
     }
     .cal-icon {
-      width: 14px;
-      height: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      width: 11px;
+      height: 11px;
     }
     /* ── Streak column ── */
     .streak-col {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 3px;
-      padding-top: 0;
+      gap: 2px;
     }
     .streak-col-spacer {
-      height: 26px; /* matches cal-day-label height to align first row */
+      height: 20px;
     }
     .cal-row-wrap {
+      height: 36px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -138,28 +131,24 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 26px;
-      height: 26px;
+      width: 24px;
+      height: 24px;
       border-radius: 50%;
       font-family: var(--font-mono);
-      font-size: 11px;
-      aspect-ratio: 1;
+      font-size: 10px;
     }
     .streak-week.done { background: var(--accent2); color: white; }
     .streak-week.empty { background: var(--border); color: var(--muted); }
-    .streak-week.current-fire {
-      font-size: 16px;
-      background: transparent;
-    }
+    .streak-week.current-fire { font-size: 15px; background: transparent; }
     .streak-total {
       display: flex;
       flex-direction: column;
       align-items: center;
-      margin-top: 0.25rem;
+      margin-top: 4px;
     }
     .streak-count {
       font-family: var(--font-display);
-      font-size: 1.1rem;
+      font-size: 1rem;
       font-weight: 700;
       color: var(--accent2);
       line-height: 1;
@@ -840,28 +829,24 @@ async function init() {
 
     calCard.innerHTML = `
       <div class="card-title">Activity calendar</div>
-      <div class="cal-wrap">
-        <div style="flex:1">
-          <div class="cal-header">
-            <div class="cal-title">${monthNames[month]} ${year}</div>
-            <div class="cal-nav">
-              <button id="calPrev">‹</button>
-              <button id="calNext">›</button>
-            </div>
-          </div>
-          <div class="cal-with-streak">
-            <div class="cal-grid">
-              ${dayLabels.map(l => `<div class="cal-day-label">${l}</div>`).join('')}
-              ${dayCells}
-            </div>
-            <div class="streak-col">
-              <div class="streak-col-spacer"></div>
-              ${rowsHtml}
-              <div class="streak-total">
-                <div class="streak-count">${currentStreak}</div>
-                <div class="streak-label">wks</div>
-              </div>
-            </div>
+      <div class="cal-header">
+        <div class="cal-title">${monthNames[month]} ${year}</div>
+        <div class="cal-nav">
+          <button id="calPrev">‹</button>
+          <button id="calNext">›</button>
+        </div>
+      </div>
+      <div class="cal-with-streak">
+        <div class="cal-grid">
+          ${dayLabels.map(l => `<div class="cal-day-label">${l}</div>`).join('')}
+          ${dayCells}
+        </div>
+        <div class="streak-col">
+          <div class="streak-col-spacer"></div>
+          ${rowsHtml}
+          <div class="streak-total">
+            <div class="streak-count">${currentStreak}</div>
+            <div class="streak-label">wks</div>
           </div>
         </div>
       </div>
