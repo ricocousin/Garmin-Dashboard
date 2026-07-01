@@ -460,6 +460,12 @@ Generate the coaching summary now."""
 # ── Call Anthropic API ────────────────────────────────────────────────────────
 api_key = os.environ.get("ANTHROPIC_API_KEY", "")
 coach_text = None
+token_usage = None
+
+# Pricing for claude-sonnet-4-6 (USD per million tokens)
+PRICE_INPUT_PER_M  = 3.00
+PRICE_OUTPUT_PER_M = 15.00
+USD_TO_DKK = 6.90  # fixed rate — approximate, update manually if needed
 
 if api_key:
     try:
@@ -484,7 +490,21 @@ if api_key:
         with urllib.request.urlopen(req, timeout=30) as resp:
             result = json.loads(resp.read().decode("utf-8"))
             coach_text = result["content"][0]["text"].strip()
+            usage = result.get("usage", {})
+            input_tokens = usage.get("input_tokens", 0)
+            output_tokens = usage.get("output_tokens", 0)
+            cost_usd = (input_tokens * PRICE_INPUT_PER_M / 1_000_000) + \
+                       (output_tokens * PRICE_OUTPUT_PER_M / 1_000_000)
+            cost_dkk = cost_usd * USD_TO_DKK
+            token_usage = {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "cost_usd": round(cost_usd, 6),
+                "cost_dkk": round(cost_dkk, 5),
+                "date": str(today_date)
+            }
             print(f"AI coach summary generated ({len(coach_text)} chars)")
+            print(f"  Tokens: {input_tokens} it + {output_tokens} ot = ${cost_usd:.5f} / {cost_dkk:.4f} kr")
 
     except Exception as e:
         print(f"AI coach API call failed: {e}")
@@ -496,17 +516,51 @@ else:
 if not coach_text:
     coach_text = "Training data updated — coach summary unavailable today."
 
+# ── Accumulate usage history ──────────────────────────────────────────────────
+usage_file = "api_usage.json"
+usage_history = []
+if os.path.exists(usage_file):
+    with open(usage_file, "r", encoding="utf-8") as f:
+        usage_history = json.load(f)
+
+if token_usage:
+    # Replace today's entry if already exists
+    usage_history = [u for u in usage_history if u.get("date") != str(today_date)]
+    usage_history.append(token_usage)
+    usage_history = sorted(usage_history, key=lambda x: x["date"], reverse=True)
+
+with open(usage_file, "w", encoding="utf-8") as f:
+    json.dump(usage_history, f, indent=2)
+
+# ── Calculate MTD and YTD totals ─────────────────────────────────────────────
+this_month = today_date.strftime("%Y-%m")
+this_year = str(today_date.year)
+
+mtd_entries = [u for u in usage_history if u.get("date", "").startswith(this_month)]
+ytd_entries = [u for u in usage_history if u.get("date", "").startswith(this_year)]
+
+mtd_cost_usd = sum(u.get("cost_usd", 0) for u in mtd_entries)
+ytd_cost_usd = sum(u.get("cost_usd", 0) for u in ytd_entries)
+mtd_cost_dkk = mtd_cost_usd * USD_TO_DKK
+ytd_cost_dkk = ytd_cost_usd * USD_TO_DKK
+
 # ── Write coach_summary.json ──────────────────────────────────────────────────
 coach_summary = {
     "last_updated": today.strftime("%Y-%m-%d %H:%M UTC"),
     "summary": coach_text,
-    "insights": [coach_text],  # keep backward compat with dashboard
-    "quiet": []
+    "insights": [coach_text],
+    "quiet": [],
+    "usage": token_usage,
+    "usage_mtd_usd": round(mtd_cost_usd, 5),
+    "usage_mtd_dkk": round(mtd_cost_dkk, 4),
+    "usage_ytd_usd": round(ytd_cost_usd, 5),
+    "usage_ytd_dkk": round(ytd_cost_dkk, 4)
 }
 
 with open("coach_summary.json", "w", encoding="utf-8") as f:
     json.dump(coach_summary, f, indent=2)
 
 print(f"Coach summary written.")
+print(f"  MTD: ${mtd_cost_usd:.5f} / {mtd_cost_dkk:.4f} kr")
+print(f"  YTD: ${ytd_cost_usd:.5f} / {ytd_cost_dkk:.4f} kr")
 print(f"  {coach_text[:120]}...")
-
