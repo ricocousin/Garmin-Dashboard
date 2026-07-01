@@ -11,26 +11,17 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Debug payload
-        run: |
-          echo "Full payload: ${{ toJson(github.event.client_payload) }}"
-          echo "Entries: ${{ toJson(github.event.client_payload.entries) }}"
-
       - name: Parse and save steps data
         run: |
           python3 << 'EOF'
           import json, os, csv
 
           payload = os.environ.get('PAYLOAD', '[]')
-          print(f"Raw payload received: {payload[:200]}")
-          
           try:
               entries = json.loads(payload)
           except Exception as e:
               print(f"JSON parse error: {e}")
               exit(0)
-
-          print(f"Parsed {len(entries)} entries")
 
           if not entries:
               print("No step data found")
@@ -55,12 +46,4 @@ jobs:
           print(f"Saved {len(entries)} entries, {len(existing)} total in steps.csv")
           EOF
         env:
-          PAYLOAD: ${{ toJson(github.event.client_payload.entries) }}
-
-      - name: Commit steps
-        run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add steps.csv
-          git diff --staged --quiet || git commit -m "Update steps data"
-          git push
+          PAYLOAD: ${{ toJson(github.event.client_payload.
