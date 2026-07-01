@@ -734,14 +734,14 @@ async function init() {
     <div class="overview-half">
       <div class="overview-label run">Running</div>
       <div class="stat">
-        <span class="stat-label">Runs ${thisYear}</span>
-        <span class="stat-value accent">${summary?.total_runs_this_year ?? yearRuns.length}</span>
-        <span class="stat-sub">${fmt(avgRunDistPerRun, 1)} km avg / run</span>
+        <span class="stat-label">Avg / run</span>
+        <span class="stat-value accent">${fmt(avgRunDistPerRun, 1)} <small style="font-size:.9rem;color:var(--text-dim)">km</small></span>
+        <span class="stat-sub">${summary?.total_runs_this_year ?? yearRuns.length} runs ${thisYear}</span>
       </div>
       <div class="stat">
-        <span class="stat-label">Distance ${thisYear}</span>
-        <span class="stat-value">${fmt(summary?.total_distance_this_year_km ?? yearDist, 0)} <small style="font-size:.9rem;color:var(--text-dim)">km</small></span>
-        <span class="stat-sub">${fmt(avgRunDistPerWeek, 1)} km / week avg</span>
+        <span class="stat-label">Avg / week</span>
+        <span class="stat-value">${fmt(avgRunDistPerWeek, 1)} <small style="font-size:.9rem;color:var(--text-dim)">km</small></span>
+        <span class="stat-sub">${fmt(summary?.total_distance_this_year_km ?? yearDist, 0)} km ${thisYear}</span>
       </div>
       <div class="stat">
         <span class="stat-label">Weekly streak</span>
@@ -753,14 +753,14 @@ async function init() {
     <div class="overview-half">
       <div class="overview-label lift">Strength</div>
       <div class="stat">
-        <span class="stat-label">Sessions ${thisYear}</span>
-        <span class="stat-value blue">${summary?.total_strength_this_year ?? yearSessions.length}</span>
-        <span class="stat-sub">${fmt(avgSessPerWeek, 1)} / week avg</span>
+        <span class="stat-label">Avg / week</span>
+        <span class="stat-value blue">${fmt(avgSessPerWeek, 1)}</span>
+        <span class="stat-sub">${summary?.total_strength_this_year ?? yearSessions.length} sessions ${thisYear}</span>
       </div>
       <div class="stat">
-        <span class="stat-label">Hours ${thisYear}</span>
-        <span class="stat-value">${(totalStrengthMinYear / 60).toFixed(1)} <small style="font-size:.9rem;color:var(--text-dim)">hrs</small></span>
-        <span class="stat-sub">${fmt(avgSessPerWeek * 4.3, 1)} / month avg</span>
+        <span class="stat-label">Avg / week</span>
+        <span class="stat-value">${fmt(totalStrengthMinYear / numRunWeeks / 60, 1)} <small style="font-size:.9rem;color:var(--text-dim)">hrs</small></span>
+        <span class="stat-sub">${(totalStrengthMinYear / 60).toFixed(1)} hrs ${thisYear}</span>
       </div>
       <div class="stat">
         <span class="stat-label">Weekly streak</span>
@@ -819,11 +819,7 @@ async function init() {
   }
 
   // ── Intensity Minutes ────────────────────────────────────────────────────────
-  const INTENSITY_GOAL_MINS = 210; // weekly target — WHO-grounded longevity threshold
-  const timeHeading = document.createElement('div');
-  timeHeading.className = 'section-heading total';
-  timeHeading.textContent = 'Intensity Minutes';
-  app.appendChild(timeHeading);
+  const INTENSITY_GOAL_MINS = 210;
 
   // Weekly streak vs 210min goal
   const allWeekKeys = [...new Set([...yearRuns, ...yearSessions].map(r => isoWeek(r.date)))].sort();
@@ -856,22 +852,25 @@ async function init() {
   intensityStreak = lastWeekKey === currentWk ? currentStreakCount : (weekMinMap[lastWeekKey] >= INTENSITY_GOAL_MINS ? currentStreakCount : 0);
 
   const timeCard = document.createElement('div');
-  timeCard.className = 'time-card';
+  timeCard.className = 'overview';
   timeCard.innerHTML = `
-    <div class="time-stat">
-      <span class="stat-label">Avg / week (${thisYear})</span>
-      <span class="stat-value" style="font-family:var(--font-display);font-size:1.8rem;font-weight:700;line-height:1">${fmtHrs(avgActivityMinsPerWeek)}</span>
-      <span class="stat-sub">${fmtHrs(totalRunMinsYear / numRunWeeks)} run · ${fmtHrs(totalStrengthMinYear / numSWeeks)} lift</span>
-    </div>
-    <div class="time-stat">
-      <span class="stat-label">Avg / week (${thisMonth})</span>
-      <span class="stat-value" style="font-family:var(--font-display);font-size:1.8rem;font-weight:700;line-height:1">${fmtHrs(avgActivityMinsPerWeekMonth)}</span>
-      <span class="stat-sub">${fmtHrs(monthRunMins / weeksInMonth)} run · ${fmtHrs(monthStrengthMins / weeksInMonth)} lift</span>
-    </div>
-    <div class="time-stat">
-      <span class="stat-label">Streak vs ${INTENSITY_GOAL_MINS}min goal</span>
-      <span class="stat-value" style="font-family:var(--font-display);font-size:1.8rem;font-weight:700;line-height:1;color:var(--accent2)">${intensityStreak} <small style="font-size:.9rem;color:var(--text-dim)">wks</small></span>
-      <span class="stat-sub">Best: ${bestIntensityStreak} wks</span>
+    <div class="overview-half" style="grid-template-columns:repeat(3,1fr)">
+      <div class="overview-label total" style="grid-column:1/-1;color:var(--accent2)">Intensity Minutes</div>
+      <div class="stat">
+        <span class="stat-label">Avg / week (${thisYear})</span>
+        <span class="stat-value" style="font-family:var(--font-display);font-size:1.6rem;font-weight:700;line-height:1">${fmtHrs(avgActivityMinsPerWeek)}</span>
+        <span class="stat-sub">${fmtHrs(totalRunMinsYear / numRunWeeks)} run · ${fmtHrs(totalStrengthMinYear / numSWeeks)} lift</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Avg / week (${thisMonth})</span>
+        <span class="stat-value" style="font-family:var(--font-display);font-size:1.6rem;font-weight:700;line-height:1">${fmtHrs(avgActivityMinsPerWeekMonth)}</span>
+        <span class="stat-sub">${fmtHrs(monthRunMins / weeksInMonth)} run · ${fmtHrs(monthStrengthMins / weeksInMonth)} lift</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Streak vs ${INTENSITY_GOAL_MINS}min goal</span>
+        <span class="stat-value" style="font-family:var(--font-display);font-size:1.6rem;font-weight:700;line-height:1;color:var(--accent2)">${intensityStreak} <small style="font-size:.9rem;color:var(--text-dim)">wks</small></span>
+        <span class="stat-sub">Best: ${bestIntensityStreak} wks</span>
+      </div>
     </div>
   `;
   app.appendChild(timeCard);
@@ -904,7 +903,7 @@ async function init() {
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const startDow = (firstDay.getDay() + 6) % 7; // 0=Mon
-    const todayStr = now.toISOString().slice(0, 10);
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 
     // SVG icons
     const runIcon = (color = '#e8ff5a') => `
@@ -1014,168 +1013,6 @@ async function init() {
   }
 
   renderCalendar(new Date().getFullYear(), new Date().getMonth());
-
-  // ── Steps section — historical ───────────────────────────────────────────────
-  const stepsHeading = document.createElement('div');
-  stepsHeading.className = 'section-heading';
-  stepsHeading.style.cssText = '--accent: #e8ff5a';
-  stepsHeading.textContent = 'Steps — Historical';
-  app.appendChild(stepsHeading);
-
-  // Compute all step entries sorted ascending
-  const stepEntries = Object.entries(stepsData)
-    .filter(([d, v]) => v > 0 && d <= lastCompleteDate)
-    .sort(([a], [b]) => a.localeCompare(b));
-
-  if (stepEntries.length > 0) {
-    const stepValues = stepEntries.map(([, v]) => v);
-    const allAvg = Math.round(stepValues.reduce((s, v) => s + v, 0) / stepValues.length);
-    const allMax = Math.max(...stepValues);
-    const allMaxDate = stepEntries[stepValues.indexOf(allMax)][0];
-
-    // 30-day average
-    const cutoff30 = new Date();
-    cutoff30.setDate(cutoff30.getDate() - 30);
-    const last30 = stepEntries.filter(([d]) => new Date(d) >= cutoff30);
-    const avg30 = last30.length > 0
-      ? Math.round(last30.reduce((s, [, v]) => s + v, 0) / last30.length) : 0;
-
-    // Monthly averages
-    const monthMap = {};
-    stepEntries.forEach(([d, v]) => {
-      const mo = d.slice(0, 7); // YYYY-MM
-      if (!monthMap[mo]) monthMap[mo] = [];
-      monthMap[mo].push(v);
-    });
-    const monthKeys = Object.keys(monthMap).sort();
-    const monthAvgs = monthKeys.map(k =>
-      Math.round(monthMap[k].reduce((s, v) => s + v, 0) / monthMap[k].length));
-    const monthLabels = monthKeys.map(k => {
-      const [y, m] = k.split('-');
-      return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1];
-    });
-
-    // Rolling 30-day average line
-    const rolling30 = stepEntries.map((_, i) => {
-      const window = stepEntries.slice(Math.max(0, i - 29), i + 1);
-      return Math.round(window.reduce((s, [, v]) => s + v, 0) / window.length);
-    });
-    const rollingLabels = stepEntries.map(([d]) => d.slice(5)); // MM-DD
-
-    // ── Stats strip ─────────────────────────────────────────────────────────────
-    const stepsStatStrip = document.createElement('div');
-    stepsStatStrip.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);';
-    stepsStatStrip.innerHTML = `
-      <div class="stat">
-        <span class="stat-label">Avg / day (all time)</span>
-        <span class="stat-value">${allAvg.toLocaleString()}</span>
-        <span class="stat-sub">steps</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Avg / day (30d)</span>
-        <span class="stat-value accent">${avg30.toLocaleString()}</span>
-        <span class="stat-sub">steps</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Best day</span>
-        <span class="stat-value">${allMax.toLocaleString()}</span>
-        <span class="stat-sub">${allMaxDate}</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Days tracked</span>
-        <span class="stat-value">${stepEntries.length}</span>
-        <span class="stat-sub">with steps > 0</span>
-      </div>
-    `;
-    app.appendChild(stepsStatStrip);
-
-    // ── Charts grid ─────────────────────────────────────────────────────────────
-    const stepsGrid = document.createElement('div');
-    stepsGrid.className = 'grid-2';
-
-    const stepsMonthCard = document.createElement('div');
-    stepsMonthCard.className = 'card';
-    stepsMonthCard.innerHTML = `
-      <div class="card-title">Avg daily steps — by month</div>
-      <div class="chart-wrap"><canvas id="stepsMonthChart"></canvas></div>
-    `;
-    stepsGrid.appendChild(stepsMonthCard);
-
-    const stepsRollingCard = document.createElement('div');
-    stepsRollingCard.className = 'card';
-    stepsRollingCard.innerHTML = `
-      <div class="card-title">Rolling 30-day average</div>
-      <div class="chart-wrap"><canvas id="stepsRollingChart"></canvas></div>
-    `;
-    stepsGrid.appendChild(stepsRollingCard);
-    app.appendChild(stepsGrid);
-
-    // Render charts
-    requestAnimationFrame(() => {
-      const currentMonthIdx = monthKeys.indexOf(new Date().toISOString().slice(0, 7));
-      const monthTrend = linearTrend(monthAvgs);
-      new Chart($('stepsMonthChart'), {
-        type: 'bar',
-        data: { labels: monthLabels, datasets: [
-          {
-            data: monthAvgs,
-            backgroundColor: monthAvgs.map((_, i) =>
-              i === currentMonthIdx ? 'rgba(232,255,90,0.85)' : 'rgba(232,255,90,0.2)'),
-            borderRadius: 2,
-            order: 2
-          },
-          {
-            type: 'line', data: monthTrend,
-            borderColor: 'rgba(255,107,53,0.7)', borderWidth: 1.5,
-            borderDash: [4,3], pointRadius: 0, fill: false, tension: 0, order: 1
-          }
-        ] },
-        options: { ...chartOpts(), scales: {
-          x: { grid: { display: false }, ticks: { color: '#6b6b78' } },
-          y: { grid: { color: '#1f1f24' }, ticks: { color: '#6b6b78',
-            callback: v => v.toLocaleString() } }
-        }, plugins: { ...chartOpts().plugins, tooltip: { ...chartOpts().plugins.tooltip,
-          callbacks: { label: ctx => ctx.datasetIndex === 0 ? ` ${ctx.parsed.y.toLocaleString()} avg steps` : ` Trend` } }} }
-      });
-
-      const rollingTrend = linearTrend(rolling30);
-      // Thin down rolling labels for readability
-      const rollingTick = Math.ceil(rollingLabels.length / 12);
-      new Chart($('stepsRollingChart'), {
-        type: 'line',
-        data: { labels: rollingLabels, datasets: [
-          {
-            data: rolling30,
-            borderColor: 'rgba(232,255,90,0.8)',
-            backgroundColor: 'rgba(232,255,90,0.06)',
-            pointRadius: 0, borderWidth: 2, tension: 0.4, fill: true, order: 2
-          },
-          {
-            data: rolling30.map(() => STEP_GOAL),
-            borderColor: 'rgba(255,107,53,0.3)',
-            borderWidth: 1, borderDash: [4, 3], pointRadius: 0, fill: false, order: 3
-          },
-          {
-            data: rollingTrend,
-            borderColor: 'rgba(255,107,53,0.7)', borderWidth: 1.5,
-            borderDash: [4,3], pointRadius: 0, fill: false, tension: 0, order: 1
-          }
-        ] },
-        options: { ...chartOpts(), scales: {
-          x: { grid: { display: false }, ticks: { color: '#6b6b78',
-            callback: (_, i) => i % rollingTick === 0 ? rollingLabels[i] : '' } },
-          y: { grid: { color: '#1f1f24' }, ticks: { color: '#6b6b78',
-            callback: v => v.toLocaleString() }, beginAtZero: false }
-        }, plugins: { ...chartOpts().plugins,
-          legend: { display: false },
-          tooltip: { ...chartOpts().plugins.tooltip,
-          callbacks: { label: ctx => ctx.datasetIndex === 0
-            ? ` ${ctx.parsed.y.toLocaleString()} avg (30d)`
-            : ` Goal: ${STEP_GOAL.toLocaleString()}` } }} }
-      });
-    });
-  }
-
 
   const runHeading = document.createElement('div');
   runHeading.className = 'section-heading';
