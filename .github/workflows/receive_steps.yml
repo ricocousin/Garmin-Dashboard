@@ -7,6 +7,7 @@ on:
 
 jobs:
   save:
+    if: github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -46,4 +47,12 @@ jobs:
           print(f"Saved {len(entries)} entries, {len(existing)} total in steps.csv")
           EOF
         env:
-          PAYLOAD: ${{ toJson(github.event.client_payload.
+          PAYLOAD: ${{ toJson(github.event.client_payload.entries) }}
+
+      - name: Commit steps
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add steps.csv
+          git diff --staged --quiet || git commit -m "Update steps data"
+          git push
