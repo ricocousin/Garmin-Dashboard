@@ -1,14 +1,14 @@
 {
-  "last_updated": "2026-06-30 13:31 UTC",
+  "last_updated": "2026-07-01 13:40 UTC",
   "insights": [
-    "Volume has dropped \u2014 101 km over the last 4 weeks vs 131 km the 4 weeks before, a 22% decrease.",
-    "You're 595% ahead of last year's pace \u2014 512 km vs 74 km by this date in 2025."
+    "Running has been prioritised over strength recently \u2014 6 runs to 3 strength sessions in the last 3 weeks, vs a 1.5:1 norm this year.",
+    "You're 565% ahead of last year's pace \u2014 524 km vs 79 km by this date in 2025."
   ],
   "quiet": [
+    "Volume steady \u2014 no significant shift in the last 4 weeks.",
     "No close calls on a PB in the last 30 days.",
     "Lactate threshold trend builds after 30 days of daily readings \u2014 check back soon.",
-    "Run/strength balance steady \u2014 no notable shift this period.",
-    "Recently active \u2014 last run 3 days ago.",
-    "Recently active \u2014 last strength session 1 day ago."
+    "Recently active \u2014 last run 1 day ago.",
+    "Recently active \u2014 last strength session 2 days ago."
   ]
 }
