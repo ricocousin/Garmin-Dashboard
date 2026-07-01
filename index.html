@@ -597,12 +597,27 @@ async function init() {
   app.innerHTML = '';
 
   const today = new Date();
+  const todayIso = today.toISOString().slice(0, 10);
+
+  // ── Last complete date ────────────────────────────────────────────────────
+  // Today's data is always partial — activities, steps, and metrics are only
+  // fully recorded the day after. All historical charts and stats use
+  // lastCompleteDate (yesterday) as the cutoff. Today-specific elements
+  // (steps ring, last run label, coach summary) are exempt from this rule.
+  const lastCompleteDay = new Date(today);
+  lastCompleteDay.setDate(today.getDate() - 1);
+  const lastCompleteDate = lastCompleteDay.toISOString().slice(0, 10);
+
   const thisYear = today.getFullYear().toString();
   const thisMonth = today.toLocaleString('en', { month: 'short' });
 
-  const yearRuns = runs.filter(r => r.date.startsWith(thisYear));
+  // Filter runs/sessions to exclude today for historical calculations
+  const runsComplete = runs.filter(r => r.date <= lastCompleteDate);
+  const sessionsComplete = sessions.filter(s => s.date <= lastCompleteDate);
+
+  const yearRuns = runsComplete.filter(r => r.date.startsWith(thisYear));
   const yearDist = yearRuns.reduce((s, r) => s + (parseFloat(r.distance_km) || 0), 0);
-  const yearSessions = sessions.filter(s => s.date.startsWith(thisYear));
+  const yearSessions = sessionsComplete.filter(s => s.date.startsWith(thisYear));
   const totalStrengthMinYear = yearSessions.reduce((s, r) => s + (parseFloat(r.duration_min) || 0), 0);
 
   const runWeeksYear = new Set(yearRuns.map(r => isoWeek(r.date)));
@@ -983,7 +998,7 @@ async function init() {
 
   // Compute all step entries sorted ascending
   const stepEntries = Object.entries(stepsData)
-    .filter(([, v]) => v > 0)
+    .filter(([d, v]) => v > 0 && d <= lastCompleteDate)
     .sort(([a], [b]) => a.localeCompare(b));
 
   if (stepEntries.length > 0) {
@@ -1212,9 +1227,9 @@ async function init() {
   const monthLabels = months.slice(0, currentMonth + 1);
   const monthData = monthDist.slice(0, currentMonth + 1);
 
-  // Weekly distance (replacing training load) with month-boundary markers
+  // Weekly distance — exclude today (partial data)
   const weekMap = {};
-  runs.forEach(r => {
+  runsComplete.forEach(r => {
     const wk = isoWeek(r.date);
     if (!weekMap[wk]) weekMap[wk] = { dist: 0 };
     weekMap[wk].dist += parseFloat(r.distance_km) || 0;
@@ -1266,7 +1281,7 @@ async function init() {
   app.appendChild(liftHeading);
 
   const sWeekMap = {};
-  sessions.forEach(s => {
+  sessionsComplete.forEach(s => {
     const wk = isoWeek(s.date);
     if (!sWeekMap[wk]) sWeekMap[wk] = { count: 0 };
     sWeekMap[wk].count++;
@@ -1281,9 +1296,9 @@ async function init() {
     return curMonth !== prevMonth;
   });
 
-  // Total sessions per month for the label badges
+  // Total sessions per month for the label badges — exclude today
   const sessionsByMonthKey = {};
-  sessions.forEach(s => {
+  sessionsComplete.forEach(s => {
     const d = new Date(s.date + 'T00:00:00');
     const key = `${d.getFullYear()}-${d.getMonth()}`;
     sessionsByMonthKey[key] = (sessionsByMonthKey[key] || 0) + 1;
