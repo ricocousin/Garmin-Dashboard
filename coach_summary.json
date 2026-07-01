@@ -1,8 +1,19 @@
 {
-  "last_updated": "2026-07-01 19:02 UTC",
-  "summary": "Your LT test today puts you at 4:24/km @ 178 bpm \u2014 a useful anchor point, though with no 30-day baseline to compare against, it's a standalone marker for now; track the next test carefully so you can start reading directional change. Volume has stepped back 13% over the last four weeks (113 km vs 131 km prior), which looks deliberate given the 44 km effort on June 8 \u2014 that kind of load warrants a consolidation phase. Yesterday's 11.7 km at 5:59/km and HR 143 reads as genuine recovery work, sitting well below the June 27 session where you were pushing 4:49/km at HR 161, likely threshold-adjacent territory. Strength frequency is light at 3 sessions across the last four weeks; with 33 YTD that's a reasonable overall count, but if you're heading into a build block, tightening that cadence would be worth prioritising. Rest-day step count averaging 11,080 suggests solid background activity without overdoing non-run load.",
+  "last_updated": "2026-07-01 20:28 UTC",
+  "summary": "Volume is down 13% over the last four weeks versus the prior block \u2014 113 km across 8 runs compared to 131 across 10 \u2014 which looks like a natural pull-back after the 44 km effort on June 8th absorbed a significant chunk of load. That ultra-distance run at 5:53/km with HR 155 was the anchor of the block, and the reduced run count since reflects appropriate recovery management.\n\nThe June 27th run stands out as the quality marker of the recent period: 15.73 km at 4:49/km with HR 161, load 239 \u2014 that's your sharpest recent effort and sits meaningfully faster than your current LT pace of 4:24/km at 178 bpm, suggesting you were working hard but not at threshold ceiling. Today's LT update at 4:24/km is a useful new reference point; without prior 30-day history to compare against it's a baseline rather than a trend, but it gives you a concrete anchor for intensity targeting going forward.\n\nStrength is at 4 sessions in the last four weeks \u2014 present but thin relative to your 34 YTD across 27 weeks, which averages closer to 1.5 sessions per week; worth pulling that frequency back up now that the post-ultra load has settled. Daily steps at",
   "insights": [
-    "Your LT test today puts you at 4:24/km @ 178 bpm \u2014 a useful anchor point, though with no 30-day baseline to compare against, it's a standalone marker for now; track the next test carefully so you can start reading directional change. Volume has stepped back 13% over the last four weeks (113 km vs 131 km prior), which looks deliberate given the 44 km effort on June 8 \u2014 that kind of load warrants a consolidation phase. Yesterday's 11.7 km at 5:59/km and HR 143 reads as genuine recovery work, sitting well below the June 27 session where you were pushing 4:49/km at HR 161, likely threshold-adjacent territory. Strength frequency is light at 3 sessions across the last four weeks; with 33 YTD that's a reasonable overall count, but if you're heading into a build block, tightening that cadence would be worth prioritising. Rest-day step count averaging 11,080 suggests solid background activity without overdoing non-run load."
+    "Volume is down 13% over the last four weeks versus the prior block \u2014 113 km across 8 runs compared to 131 across 10 \u2014 which looks like a natural pull-back after the 44 km effort on June 8th absorbed a significant chunk of load. That ultra-distance run at 5:53/km with HR 155 was the anchor of the block, and the reduced run count since reflects appropriate recovery management.\n\nThe June 27th run stands out as the quality marker of the recent period: 15.73 km at 4:49/km with HR 161, load 239 \u2014 that's your sharpest recent effort and sits meaningfully faster than your current LT pace of 4:24/km at 178 bpm, suggesting you were working hard but not at threshold ceiling. Today's LT update at 4:24/km is a useful new reference point; without prior 30-day history to compare against it's a baseline rather than a trend, but it gives you a concrete anchor for intensity targeting going forward.\n\nStrength is at 4 sessions in the last four weeks \u2014 present but thin relative to your 34 YTD across 27 weeks, which averages closer to 1.5 sessions per week; worth pulling that frequency back up now that the post-ultra load has settled. Daily steps at"
   ],
-  "quiet": []
+  "quiet": [],
+  "usage": {
+    "input_tokens": 1234,
+    "output_tokens": 300,
+    "cost_usd": 0.008202,
+    "cost_dkk": 0.05659,
+    "date": "2026-07-01"
+  },
+  "usage_mtd_usd": 0.0082,
+  "usage_mtd_dkk": 0.0566,
+  "usage_ytd_usd": 0.0082,
+  "usage_ytd_dkk": 0.0566
 }
