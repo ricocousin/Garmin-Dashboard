@@ -1,0 +1,32 @@
+name: Receive Steps Data
+
+on:
+  repository_dispatch:
+    types: [health-steps]
+
+jobs:
+  save:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Append steps data
+        run: |
+          DATE="${{ github.event.client_payload.date }}"
+          STEPS="${{ github.event.client_payload.steps }}"
+          if [ ! -f steps.csv ]; then
+            echo "date,steps" > steps.csv
+          fi
+          # Remove existing entry for this date if present
+          grep -v "^${DATE}," steps.csv > steps_tmp.csv || true
+          echo "${DATE},${STEPS}" >> steps_tmp.csv
+          sort -r steps_tmp.csv > steps.csv
+          rm steps_tmp.csv
+
+      - name: Commit steps
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add steps.csv
+          git diff --staged --quiet || git commit -m "Update steps data"
+          git push
