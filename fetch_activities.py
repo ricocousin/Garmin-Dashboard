@@ -482,7 +482,7 @@ if api_key:
     try:
         payload = json.dumps({
             "model": "claude-sonnet-4-6",
-            "max_tokens": 300,
+            "max_tokens": 450,
             "system": system_prompt,
             "messages": [{"role": "user", "content": user_prompt}]
         }).encode("utf-8")
