@@ -268,12 +268,11 @@ if os.path.exists(lt_file):
         lt_records = json.load(f)
 
 try:
-    status = client.get_training_status(today.strftime("%Y-%m-%d"))
+    status = client.get_training_status()
     lt_hr = status.get("latestLactateThresholdHeartRate")
     lt_speed = status.get("latestLactateThresholdSpeed")
     if lt_hr and lt_speed:
-        pace_sec = (1 / (lt_speed * 10)) * (1000 / 60)
-
+        pace_sec = (1 / lt_speed) * (1000 / 60)
         pace_min = int(pace_sec)
         pace_s = int((pace_sec - pace_min) * 60)
         today_str = str(today.date())
@@ -401,7 +400,7 @@ for r in reversed(recent_runs[-8:]):
 # ── Build prompt ──────────────────────────────────────────────────────────────
 system_prompt = """You are a sports science coach for Frederik, an experienced runner training for ultras, stage races, marathons and half marathons — primarily trail, running 4x per week.
 
-Your role is to generate a short daily training status summary (3-5 sentences max) based on the data provided. 
+Your role is to generate a short daily training status summary based on the data provided.
 
 Tone and style:
 - Data-anchored: root every observation in specific numbers from the data
@@ -413,8 +412,10 @@ Tone and style:
 - Focus on what's actionable or worth awareness — not just restating numbers
 
 Output format:
-- 3-5 sentences of flowing prose, no bullet points
-- No greeting, no sign-off
+- Exactly 3 short paragraphs separated by a blank line
+- Each paragraph covers one distinct theme: e.g. load/volume, intensity/quality, supporting metrics (LT, steps, strength)
+- Each paragraph is 1-3 sentences max — keep it tight
+- No bullet points, no headers, no greeting, no sign-off
 - Write in second person ("your threshold...", "you've...")"""
 
 user_prompt = f"""Today: {today_date} (week {today_date.isocalendar()[1]} of {today_date.year})
