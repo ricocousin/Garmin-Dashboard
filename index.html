@@ -259,6 +259,7 @@
     .overview-label { grid-column: 1 / -1; background: var(--surface); font-family: var(--font-mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em; padding: 0.5rem 1.5rem; color: var(--text-dim); border-bottom: 1px solid var(--border); }
     .overview-label.run { color: var(--accent); }
     .overview-label.lift { color: var(--strength); }
+    .overview-label.steps { color: var(--accent2); }
     @media (max-width: 800px) { .overview { grid-template-columns: 1fr; } .overview-divider { display: none; } }
 
     .time-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); }
@@ -653,6 +654,14 @@ async function init() {
   const latestLT = ltData.length > 0 ? ltData[ltData.length - 1] : null;
   const zones = latestLT ? calcZones(latestLT.lt_pace, latestLT.lt_hr) : null;
 
+  // ── Steps data — parsed early so overview tiles can use it ───────────────────
+  let stepsData = {};
+  if (stepsRaw) {
+    const { data: stepsRows } = Papa.parse(stepsRaw, { header: true, skipEmptyLines: true });
+    stepsRows.forEach(r => { if (r.date) stepsData[r.date] = parseInt(r.steps) || 0; });
+  }
+  const STEP_GOAL = 10000;
+
   // ── Coach evaluator ───────────────────────────────────────────────────────────
   if (coachData && (coachData.summary || (coachData.insights && coachData.insights.length > 0))) {
     const coachCard = document.createElement('div');
@@ -696,11 +705,15 @@ async function init() {
       const yc = ytdColor(coachData.usage_ytd_usd || 0);
       return `
         <div class="coach-usage">
-          <span style="color:${dc}">${u.input_tokens.toLocaleString()} it · ${u.output_tokens.toLocaleString()} ot · $${u.cost_usd.toFixed(4)} / ${u.cost_dkk.toFixed(3)} kr</span>
-          &nbsp;·&nbsp;
-          <span style="color:${mc}">MTD $${(coachData.usage_mtd_usd || 0).toFixed(4)} / ${(coachData.usage_mtd_dkk || 0).toFixed(3)} kr</span>
-          &nbsp;·&nbsp;
-          <span style="color:${yc}">YTD $${(coachData.usage_ytd_usd || 0).toFixed(4)} / ${(coachData.usage_ytd_dkk || 0).toFixed(3)} kr</span>
+          <div><span style="color:${dc}">${u.input_tokens.toLocaleString()} it · ${u.output_tokens.toLocaleString()} ot · $${u.cost_usd.toFixed(4)} / ${u.cost_dkk.toFixed(3)} kr</span></div>
+          <div><span style="color:${mc}">MTD $${(coachData.usage_mtd_usd || 0).toFixed(4)} / ${(coachData.usage_mtd_dkk || 0).toFixed(3)} kr</span></div>
+          <div><span style="color:${yc}">YTD $${(coachData.usage_ytd_usd || 0).toFixed(4)} / ${(coachData.usage_ytd_dkk || 0).toFixed(3)} kr</span></div>
+          <div class="coach-usage-scale">
+            <div style="background:linear-gradient(to right,#4a9eff,#7bc67e,#e8ff5a,#ff9f40,#ff6b35);height:2px;border-radius:1px;margin-top:4px;opacity:0.5"></div>
+            <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--muted);margin-top:2px">
+              <span>min</span><span>normal</span><span>elevated</span><span>high</span><span>max</span>
+            </div>
+          </div>
         </div>
       `;
     })() : '';
@@ -758,11 +771,89 @@ async function init() {
   `;
   app.appendChild(overview);
 
-  // ── Intensity Minutes card ───────────────────────────────────────────────────
+  // ── Steps overview row ───────────────────────────────────────────────────────
+  // Computed here so values are available for intensity minutes too
+  const stepsOverviewData = (() => {
+    if (!Object.keys(stepsData || {}).length) return null;
+    const allVals = Object.entries(stepsData).filter(([d, v]) => v > 0 && d <= lastCompleteDate);
+    const avg7d = (() => {
+      const days = [];
+      for (let i = 1; i <= 7; i++) {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        const ds = d.toISOString().slice(0, 10);
+        if (stepsData[ds]) days.push(stepsData[ds]);
+      }
+      return days.length ? Math.round(days.reduce((s, v) => s + v, 0) / days.length) : null;
+    })();
+    const cutoff30d = new Date(); cutoff30d.setDate(cutoff30d.getDate() - 30);
+    const last30d = allVals.filter(([d]) => new Date(d) >= cutoff30d);
+    const avg30d = last30d.length ? Math.round(last30d.reduce((s, [, v]) => s + v, 0) / last30d.length) : null;
+    const avgAll = allVals.length ? Math.round(allVals.reduce((s, [, v]) => s + v, 0) / allVals.length) : null;
+    return { avgAll, avg7d, avg30d };
+  })();
+
+  if (stepsOverviewData) {
+    const stepsOverview = document.createElement('div');
+    stepsOverview.className = 'overview';
+    stepsOverview.innerHTML = `
+      <div class="overview-half" style="grid-template-columns:repeat(3,1fr)">
+        <div class="overview-label steps" style="grid-column:1/-1">Steps</div>
+        <div class="stat">
+          <span class="stat-label">Avg / day (all time)</span>
+          <span class="stat-value" style="color:var(--accent2)">${stepsOverviewData.avgAll?.toLocaleString() ?? '—'}</span>
+          <span class="stat-sub">steps</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Avg / day (7d)</span>
+          <span class="stat-value" style="color:var(--accent2)">${stepsOverviewData.avg7d?.toLocaleString() ?? '—'}</span>
+          <span class="stat-sub">steps</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Avg / day (30d)</span>
+          <span class="stat-value" style="color:var(--accent2)">${stepsOverviewData.avg30d?.toLocaleString() ?? '—'}</span>
+          <span class="stat-sub">steps</span>
+        </div>
+      </div>
+    `;
+    app.appendChild(stepsOverview);
+  }
+
+  // ── Intensity Minutes ────────────────────────────────────────────────────────
+  const INTENSITY_GOAL_MINS = 210; // weekly target — WHO-grounded longevity threshold
   const timeHeading = document.createElement('div');
   timeHeading.className = 'section-heading total';
   timeHeading.textContent = 'Intensity Minutes';
   app.appendChild(timeHeading);
+
+  // Weekly streak vs 210min goal
+  const allWeekKeys = [...new Set([...yearRuns, ...yearSessions].map(r => isoWeek(r.date)))].sort();
+  let intensityStreak = 0;
+  let bestIntensityStreak = 0;
+  let currentStreakCount = 0;
+  const weekMinMap = {};
+  yearRuns.forEach(r => {
+    const wk = isoWeek(r.date);
+    const parts = (r.moving_time || '').split(':').map(Number);
+    const mins = parts[0] * 60 + (parts[1] || 0) + (parts[2] || 0) / 60;
+    weekMinMap[wk] = (weekMinMap[wk] || 0) + mins;
+  });
+  yearSessions.forEach(s => {
+    const wk = isoWeek(s.date);
+    weekMinMap[wk] = (weekMinMap[wk] || 0) + (parseFloat(s.duration_min) || 0);
+  });
+  const sortedWeekKeys = Object.keys(weekMinMap).sort();
+  for (const wk of sortedWeekKeys) {
+    if (weekMinMap[wk] >= INTENSITY_GOAL_MINS) {
+      currentStreakCount++;
+      bestIntensityStreak = Math.max(bestIntensityStreak, currentStreakCount);
+    } else {
+      currentStreakCount = 0;
+    }
+  }
+  // Check if current week is ongoing (don't break streak for incomplete current week)
+  const currentWk = isoWeek(new Date().toISOString().slice(0, 10));
+  const lastWeekKey = sortedWeekKeys[sortedWeekKeys.length - 1];
+  intensityStreak = lastWeekKey === currentWk ? currentStreakCount : (weekMinMap[lastWeekKey] >= INTENSITY_GOAL_MINS ? currentStreakCount : 0);
 
   const timeCard = document.createElement('div');
   timeCard.className = 'time-card';
@@ -776,6 +867,11 @@ async function init() {
       <span class="stat-label">Avg / week (${thisMonth})</span>
       <span class="stat-value" style="font-family:var(--font-display);font-size:1.8rem;font-weight:700;line-height:1">${fmtHrs(avgActivityMinsPerWeekMonth)}</span>
       <span class="stat-sub">${fmtHrs(monthRunMins / weeksInMonth)} run · ${fmtHrs(monthStrengthMins / weeksInMonth)} lift</span>
+    </div>
+    <div class="time-stat">
+      <span class="stat-label">Streak vs ${INTENSITY_GOAL_MINS}min goal</span>
+      <span class="stat-value" style="font-family:var(--font-display);font-size:1.8rem;font-weight:700;line-height:1;color:var(--accent2)">${intensityStreak} <small style="font-size:.9rem;color:var(--text-dim)">wks</small></span>
+      <span class="stat-sub">Best: ${bestIntensityStreak} wks</span>
     </div>
   `;
   app.appendChild(timeCard);
@@ -919,76 +1015,6 @@ async function init() {
 
   renderCalendar(new Date().getFullYear(), new Date().getMonth());
 
-  // ── Steps card ───────────────────────────────────────────────────────────────
-  let stepsData = {};
-  if (stepsRaw) {
-    const { data: stepsRows } = Papa.parse(stepsRaw, { header: true, skipEmptyLines: true });
-    stepsRows.forEach(r => { if (r.date) stepsData[r.date] = parseInt(r.steps) || 0; });
-  }
-
-  const STEP_GOAL = 10000;
-  const todayStr2 = new Date().toISOString().slice(0, 10);
-  const todaySteps = stepsData[todayStr2] ?? null;
-
-  // Last 7 days
-  const last7 = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const ds = d.toISOString().slice(0, 10);
-    last7.push({
-      dateStr: ds,
-      label: ['S','M','T','W','T','F','S'][d.getDay()],
-      steps: stepsData[ds] ?? null,
-      isToday: ds === todayStr2
-    });
-  }
-
-  const avg7 = Math.round(
-    last7.filter(d => d.steps !== null).reduce((s, d) => s + d.steps, 0) /
-    Math.max(last7.filter(d => d.steps !== null).length, 1)
-  );
-
-  // Ring progress
-  const radius = 48;
-  const circ = 2 * Math.PI * radius;
-  const pct = todaySteps !== null ? Math.min(todaySteps / STEP_GOAL, 1) : 0;
-  const dash = pct * circ;
-
-  const stepsCard = document.createElement('div');
-  stepsCard.className = 'card';
-  stepsCard.innerHTML = `
-    <div class="card-title">Daily steps</div>
-    <div class="steps-card-inner">
-      <div class="steps-ring-wrap">
-        <svg width="120" height="120" viewBox="0 0 120 120">
-          <circle cx="60" cy="60" r="${radius}" fill="none" stroke="var(--border)" stroke-width="8"/>
-          <circle cx="60" cy="60" r="${radius}" fill="none" stroke="var(--accent)" stroke-width="8"
-            stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}"
-            stroke-linecap="round"
-            ${todaySteps === null ? 'opacity="0"' : ''}/>
-        </svg>
-        <div class="steps-ring-center">
-          <span class="steps-today">${todaySteps !== null ? todaySteps.toLocaleString() : '—'}</span>
-          <span class="steps-today-label">today</span>
-        </div>
-      </div>
-      <div class="steps-days-row">
-        ${last7.map(d => `
-          <div class="steps-day">
-            <div class="steps-day-label">${d.label}</div>
-            <div class="steps-day-dot ${d.steps !== null ? 'active' : ''} ${d.isToday ? 'today-dot' : ''}">
-              ${d.steps !== null ? '✓' : ''}
-            </div>
-          </div>
-        `).join('')}
-      </div>
-      <div class="steps-avg">7-day avg: ${avg7.toLocaleString()} steps</div>
-      <div class="steps-period">Goal: ${STEP_GOAL.toLocaleString()} steps / day</div>
-    </div>
-  `;
-  app.appendChild(stepsCard);
-
   // ── Steps section — historical ───────────────────────────────────────────────
   const stepsHeading = document.createElement('div');
   stepsHeading.className = 'section-heading';
@@ -1087,43 +1113,54 @@ async function init() {
     // Render charts
     requestAnimationFrame(() => {
       const currentMonthIdx = monthKeys.indexOf(new Date().toISOString().slice(0, 7));
+      const monthTrend = linearTrend(monthAvgs);
       new Chart($('stepsMonthChart'), {
         type: 'bar',
-        data: { labels: monthLabels, datasets: [{
-          data: monthAvgs,
-          backgroundColor: monthAvgs.map((_, i) =>
-            i === currentMonthIdx ? 'rgba(232,255,90,0.85)' : 'rgba(232,255,90,0.2)'),
-          borderRadius: 2
-        }] },
+        data: { labels: monthLabels, datasets: [
+          {
+            data: monthAvgs,
+            backgroundColor: monthAvgs.map((_, i) =>
+              i === currentMonthIdx ? 'rgba(232,255,90,0.85)' : 'rgba(232,255,90,0.2)'),
+            borderRadius: 2,
+            order: 2
+          },
+          {
+            type: 'line', data: monthTrend,
+            borderColor: 'rgba(255,107,53,0.7)', borderWidth: 1.5,
+            borderDash: [4,3], pointRadius: 0, fill: false, tension: 0, order: 1
+          }
+        ] },
         options: { ...chartOpts(), scales: {
           x: { grid: { display: false }, ticks: { color: '#6b6b78' } },
           y: { grid: { color: '#1f1f24' }, ticks: { color: '#6b6b78',
             callback: v => v.toLocaleString() } }
         }, plugins: { ...chartOpts().plugins, tooltip: { ...chartOpts().plugins.tooltip,
-          callbacks: { label: ctx => ` ${ctx.parsed.y.toLocaleString()} avg steps` } }} }
+          callbacks: { label: ctx => ctx.datasetIndex === 0 ? ` ${ctx.parsed.y.toLocaleString()} avg steps` : ` Trend` } }} }
       });
 
+      const rollingTrend = linearTrend(rolling30);
       // Thin down rolling labels for readability
       const rollingTick = Math.ceil(rollingLabels.length / 12);
       new Chart($('stepsRollingChart'), {
         type: 'line',
-        data: { labels: rollingLabels, datasets: [{
-          data: rolling30,
-          borderColor: 'rgba(232,255,90,0.8)',
-          backgroundColor: 'rgba(232,255,90,0.06)',
-          pointRadius: 0,
-          borderWidth: 2,
-          tension: 0.4,
-          fill: true
-        }, {
-          // Goal line
-          data: rolling30.map(() => STEP_GOAL),
-          borderColor: 'rgba(255,107,53,0.3)',
-          borderWidth: 1,
-          borderDash: [4, 3],
-          pointRadius: 0,
-          fill: false
-        }] },
+        data: { labels: rollingLabels, datasets: [
+          {
+            data: rolling30,
+            borderColor: 'rgba(232,255,90,0.8)',
+            backgroundColor: 'rgba(232,255,90,0.06)',
+            pointRadius: 0, borderWidth: 2, tension: 0.4, fill: true, order: 2
+          },
+          {
+            data: rolling30.map(() => STEP_GOAL),
+            borderColor: 'rgba(255,107,53,0.3)',
+            borderWidth: 1, borderDash: [4, 3], pointRadius: 0, fill: false, order: 3
+          },
+          {
+            data: rollingTrend,
+            borderColor: 'rgba(255,107,53,0.7)', borderWidth: 1.5,
+            borderDash: [4,3], pointRadius: 0, fill: false, tension: 0, order: 1
+          }
+        ] },
         options: { ...chartOpts(), scales: {
           x: { grid: { display: false }, ticks: { color: '#6b6b78',
             callback: (_, i) => i % rollingTick === 0 ? rollingLabels[i] : '' } },
