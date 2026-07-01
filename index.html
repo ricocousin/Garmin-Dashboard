@@ -19,6 +19,8 @@
       --accent:    #e8ff5a;
       --accent2:   #ff6b35;
       --strength:  #4a9eff;
+      --steps:     #f472b6;
+      --intensity: #a78bfa;
       --font-display: 'Syne', sans-serif;
       --font-body:    'Inter', sans-serif;
       --font-mono:    'DM Mono', monospace;
@@ -162,8 +164,10 @@
     }
     main { max-width: 1400px; margin: 0 auto; padding: 2rem; display: grid; gap: 1.5rem; }
 
-    .overview { display: grid; grid-template-columns: 1fr 1px 1fr; border: 1px solid var(--border); background: var(--border); }
+    .overview-block { border: 1px solid var(--border); background: var(--border); display: flex; flex-direction: column; gap: 1px; }
+    .overview { background: var(--border); display: grid; grid-template-columns: 1fr 1px 1fr; }
     .overview-half { background: var(--border); display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1px; }
+    .overview-full { background: var(--border); display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; }
     .overview-divider { background: var(--border); width: 1px; }
 
     /* ── Coach evaluator ── */
@@ -259,7 +263,8 @@
     .overview-label { grid-column: 1 / -1; background: var(--surface); font-family: var(--font-mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em; padding: 0.5rem 1.5rem; color: var(--text-dim); border-bottom: 1px solid var(--border); }
     .overview-label.run { color: var(--accent); }
     .overview-label.lift { color: var(--strength); }
-    .overview-label.steps { color: var(--accent2); }
+    .overview-label.steps { color: var(--steps); }
+    .overview-label.intensity { color: var(--intensity); }
     @media (max-width: 800px) { .overview { grid-template-columns: 1fr; } .overview-divider { display: none; } }
 
     .time-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); }
@@ -727,60 +732,16 @@ async function init() {
     app.appendChild(coachCard);
   }
 
-  // ── Combined overview ────────────────────────────────────────────────────────
-  const overview = document.createElement('div');
-  overview.className = 'overview';
-  overview.innerHTML = `
-    <div class="overview-half">
-      <div class="overview-label run">Running</div>
-      <div class="stat">
-        <span class="stat-label">Avg / run</span>
-        <span class="stat-value accent">${fmt(avgRunDistPerRun, 1)} <small style="font-size:.9rem;color:var(--text-dim)">km</small></span>
-        <span class="stat-sub">${summary?.total_runs_this_year ?? yearRuns.length} runs ${thisYear}</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Avg / week</span>
-        <span class="stat-value">${fmt(avgRunDistPerWeek, 1)} <small style="font-size:.9rem;color:var(--text-dim)">km</small></span>
-        <span class="stat-sub">${fmt(summary?.total_distance_this_year_km ?? yearDist, 0)} km ${thisYear}</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Weekly streak</span>
-        <span class="stat-value accent">${summary?.current_weekly_streak ?? '—'} <small style="font-size:.9rem;color:var(--text-dim)">wks</small></span>
-        <span class="stat-sub">Best: ${summary?.longest_weekly_streak ?? '—'} wks</span>
-      </div>
-    </div>
-    <div class="overview-divider"></div>
-    <div class="overview-half">
-      <div class="overview-label lift">Strength</div>
-      <div class="stat">
-        <span class="stat-label">Avg / week</span>
-        <span class="stat-value blue">${fmt(avgSessPerWeek, 1)}</span>
-        <span class="stat-sub">${summary?.total_strength_this_year ?? yearSessions.length} sessions ${thisYear}</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Avg / week</span>
-        <span class="stat-value">${fmt(totalStrengthMinYear / numRunWeeks / 60, 1)} <small style="font-size:.9rem;color:var(--text-dim)">hrs</small></span>
-        <span class="stat-sub">${(totalStrengthMinYear / 60).toFixed(1)} hrs ${thisYear}</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Weekly streak</span>
-        <span class="stat-value blue">${summary?.current_strength_weekly_streak ?? '—'} <small style="font-size:.9rem;color:var(--text-dim)">wks</small></span>
-        <span class="stat-sub">Best: ${summary?.longest_strength_weekly_streak ?? '—'} wks</span>
-      </div>
-    </div>
-  `;
-  app.appendChild(overview);
-
-  // ── Steps overview row ───────────────────────────────────────────────────────
-  // Computed here so values are available for intensity minutes too
+  // ── Unified activity overview block ──────────────────────────────────────────
   const stepsOverviewData = (() => {
     if (!Object.keys(stepsData || {}).length) return null;
     const allVals = Object.entries(stepsData).filter(([d, v]) => v > 0 && d <= lastCompleteDate);
     const avg7d = (() => {
       const days = [];
       for (let i = 1; i <= 7; i++) {
-        const d = new Date(); d.setDate(d.getDate() - i);
-        const ds = d.toISOString().slice(0, 10);
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
         if (stepsData[ds]) days.push(stepsData[ds]);
       }
       return days.length ? Math.round(days.reduce((s, v) => s + v, 0) / days.length) : null;
@@ -792,40 +753,7 @@ async function init() {
     return { avgAll, avg7d, avg30d };
   })();
 
-  if (stepsOverviewData) {
-    const stepsOverview = document.createElement('div');
-    stepsOverview.className = 'overview';
-    stepsOverview.innerHTML = `
-      <div class="overview-half" style="grid-template-columns:repeat(3,1fr)">
-        <div class="overview-label steps" style="grid-column:1/-1">Steps</div>
-        <div class="stat">
-          <span class="stat-label">Avg / day (all time)</span>
-          <span class="stat-value" style="color:var(--accent2)">${stepsOverviewData.avgAll?.toLocaleString() ?? '—'}</span>
-          <span class="stat-sub">steps</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Avg / day (7d)</span>
-          <span class="stat-value" style="color:var(--accent2)">${stepsOverviewData.avg7d?.toLocaleString() ?? '—'}</span>
-          <span class="stat-sub">steps</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Avg / day (30d)</span>
-          <span class="stat-value" style="color:var(--accent2)">${stepsOverviewData.avg30d?.toLocaleString() ?? '—'}</span>
-          <span class="stat-sub">steps</span>
-        </div>
-      </div>
-    `;
-    app.appendChild(stepsOverview);
-  }
-
-  // ── Intensity Minutes ────────────────────────────────────────────────────────
   const INTENSITY_GOAL_MINS = 210;
-
-  // Weekly streak vs 210min goal
-  const allWeekKeys = [...new Set([...yearRuns, ...yearSessions].map(r => isoWeek(r.date)))].sort();
-  let intensityStreak = 0;
-  let bestIntensityStreak = 0;
-  let currentStreakCount = 0;
   const weekMinMap = {};
   yearRuns.forEach(r => {
     const wk = isoWeek(r.date);
@@ -838,42 +766,100 @@ async function init() {
     weekMinMap[wk] = (weekMinMap[wk] || 0) + (parseFloat(s.duration_min) || 0);
   });
   const sortedWeekKeys = Object.keys(weekMinMap).sort();
+  let intensityStreak = 0, bestIntensityStreak = 0, currentStreakCount = 0;
   for (const wk of sortedWeekKeys) {
     if (weekMinMap[wk] >= INTENSITY_GOAL_MINS) {
       currentStreakCount++;
       bestIntensityStreak = Math.max(bestIntensityStreak, currentStreakCount);
-    } else {
-      currentStreakCount = 0;
-    }
+    } else { currentStreakCount = 0; }
   }
-  // Check if current week is ongoing (don't break streak for incomplete current week)
-  const currentWk = isoWeek(new Date().toISOString().slice(0, 10));
+  const currentWk = isoWeek(`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`);
   const lastWeekKey = sortedWeekKeys[sortedWeekKeys.length - 1];
   intensityStreak = lastWeekKey === currentWk ? currentStreakCount : (weekMinMap[lastWeekKey] >= INTENSITY_GOAL_MINS ? currentStreakCount : 0);
 
-  const timeCard = document.createElement('div');
-  timeCard.className = 'overview';
-  timeCard.innerHTML = `
-    <div class="overview-half" style="grid-template-columns:repeat(3,1fr)">
-      <div class="overview-label total" style="grid-column:1/-1;color:var(--accent2)">Intensity Minutes</div>
+  const stepsRow = stepsOverviewData ? `
+    <div class="overview-full">
+      <div class="overview-label intensity" style="grid-column:1/-1;color:var(--steps)">Steps</div>
+      <div class="stat">
+        <span class="stat-label">Avg / day (all time)</span>
+        <span class="stat-value" style="color:var(--steps)">${stepsOverviewData.avgAll?.toLocaleString() ?? '—'}</span>
+        <span class="stat-sub">steps</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Avg / day (7d)</span>
+        <span class="stat-value" style="color:var(--steps)">${stepsOverviewData.avg7d?.toLocaleString() ?? '—'}</span>
+        <span class="stat-sub">steps</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Avg / day (30d)</span>
+        <span class="stat-value" style="color:var(--steps)">${stepsOverviewData.avg30d?.toLocaleString() ?? '—'}</span>
+        <span class="stat-sub">steps</span>
+      </div>
+    </div>` : '';
+
+  const overviewBlock = document.createElement('div');
+  overviewBlock.className = 'overview-block';
+  overviewBlock.innerHTML = `
+    <div class="overview">
+      <div class="overview-half">
+        <div class="overview-label run">Running</div>
+        <div class="stat">
+          <span class="stat-label">Avg / run</span>
+          <span class="stat-value accent">${fmt(avgRunDistPerRun, 1)} <small style="font-size:.9rem;color:var(--text-dim)">km</small></span>
+          <span class="stat-sub">${summary?.total_runs_this_year ?? yearRuns.length} runs ${thisYear}</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Avg / week</span>
+          <span class="stat-value">${fmt(avgRunDistPerWeek, 1)} <small style="font-size:.9rem;color:var(--text-dim)">km</small></span>
+          <span class="stat-sub">${fmt(summary?.total_distance_this_year_km ?? yearDist, 0)} km ${thisYear}</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Weekly streak</span>
+          <span class="stat-value accent">${summary?.current_weekly_streak ?? '—'} <small style="font-size:.9rem;color:var(--text-dim)">wks</small></span>
+          <span class="stat-sub">Best: ${summary?.longest_weekly_streak ?? '—'} wks</span>
+        </div>
+      </div>
+      <div class="overview-divider"></div>
+      <div class="overview-half">
+        <div class="overview-label lift">Strength</div>
+        <div class="stat">
+          <span class="stat-label">Avg / week</span>
+          <span class="stat-value blue">${fmt(avgSessPerWeek, 1)}</span>
+          <span class="stat-sub">${summary?.total_strength_this_year ?? yearSessions.length} sessions ${thisYear}</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Avg / week</span>
+          <span class="stat-value">${fmt(totalStrengthMinYear / numRunWeeks / 60, 1)} <small style="font-size:.9rem;color:var(--text-dim)">hrs</small></span>
+          <span class="stat-sub">${(totalStrengthMinYear / 60).toFixed(1)} hrs ${thisYear}</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Weekly streak</span>
+          <span class="stat-value blue">${summary?.current_strength_weekly_streak ?? '—'} <small style="font-size:.9rem;color:var(--text-dim)">wks</small></span>
+          <span class="stat-sub">Best: ${summary?.longest_strength_weekly_streak ?? '—'} wks</span>
+        </div>
+      </div>
+    </div>
+    ${stepsRow}
+    <div class="overview-full">
+      <div class="overview-label intensity" style="grid-column:1/-1">Intensity Minutes</div>
       <div class="stat">
         <span class="stat-label">Avg / week (${thisYear})</span>
-        <span class="stat-value" style="font-family:var(--font-display);font-size:1.6rem;font-weight:700;line-height:1">${fmtHrs(avgActivityMinsPerWeek)}</span>
+        <span class="stat-value" style="color:var(--intensity)">${fmtHrs(avgActivityMinsPerWeek)}</span>
         <span class="stat-sub">${fmtHrs(totalRunMinsYear / numRunWeeks)} run · ${fmtHrs(totalStrengthMinYear / numSWeeks)} lift</span>
       </div>
       <div class="stat">
         <span class="stat-label">Avg / week (${thisMonth})</span>
-        <span class="stat-value" style="font-family:var(--font-display);font-size:1.6rem;font-weight:700;line-height:1">${fmtHrs(avgActivityMinsPerWeekMonth)}</span>
+        <span class="stat-value" style="color:var(--intensity)">${fmtHrs(avgActivityMinsPerWeekMonth)}</span>
         <span class="stat-sub">${fmtHrs(monthRunMins / weeksInMonth)} run · ${fmtHrs(monthStrengthMins / weeksInMonth)} lift</span>
       </div>
       <div class="stat">
         <span class="stat-label">Streak vs ${INTENSITY_GOAL_MINS}min goal</span>
-        <span class="stat-value" style="font-family:var(--font-display);font-size:1.6rem;font-weight:700;line-height:1;color:var(--accent2)">${intensityStreak} <small style="font-size:.9rem;color:var(--text-dim)">wks</small></span>
+        <span class="stat-value" style="color:var(--intensity)">${intensityStreak} <small style="font-size:.9rem;color:var(--text-dim)">wks</small></span>
         <span class="stat-sub">Best: ${bestIntensityStreak} wks</span>
       </div>
     </div>
   `;
-  app.appendChild(timeCard);
+  app.appendChild(overviewBlock);
 
   // ── Activity calendar ────────────────────────────────────────────────────────
   const calCard = document.createElement('div');
