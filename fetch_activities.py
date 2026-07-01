@@ -390,72 +390,128 @@ for label, min_dist in pb_cats:
         best = min(eligible, key=lambda r: parse_pace_sec(r["avg_pace_min_km"]) or 9999)
         pb_lines.append(f"{label}: {best['avg_pace_min_km']} /km on {best['date']} ({best.get('distance_km')} km)")
 
-# Recent run details (last 8)
+# Recent run details (last 8) — elevation included for trail context
 run_details = []
 for r in reversed(recent_runs[-8:]):
+    elev = f" | ↑{r.get('elevation_gain_m','?')}m" if r.get('elevation_gain_m') else ""
     run_details.append(
         f"  {r['date']} | {r.get('distance_km','?')} km | {r.get('avg_pace_min_km','?')} /km | "
         f"HR {r.get('avg_hr','?')} | load {r.get('training_load','?')} | "
-        f"ATE {r.get('aerobic_training_effect','?')} | {r.get('type','?')}"
+        f"ATE {r.get('aerobic_training_effect','?')}{elev} | {r.get('type','?')}"
     )
 
+
+# ── Build 12-week context ─────────────────────────────────────────────────────
+cutoff_12wk = today_date - timedelta(days=84)
+runs_12wk = [r for r in all_runs_sorted
+    if r.get("date") and datetime.strptime(r["date"], "%Y-%m-%d").date() >= cutoff_12wk]
+dist_12wk = sum(float(r.get("distance_km") or 0) for r in runs_12wk)
+avg_weekly_dist_12wk = dist_12wk / 12
+avg_weekly_runs_12wk = len(runs_12wk) / 12
+
+# ATE baseline (YTD average — supporting context only)
+ate_values = [float(r.get("aerobic_training_effect") or 0)
+    for r in all_run_rows if r.get("aerobic_training_effect")
+    and r.get("date", "").startswith(str(today_date.year))]
+avg_ate_ytd = round(sum(ate_values) / max(len(ate_values), 1), 2)
+
+# Strength sessions per week YTD
+strength_per_week_ytd = round(
+    summary.get('total_strength_this_year', 0) / max(today_date.timetuple().tm_yday / 7, 1), 1)
+
 # ── Build prompt ──────────────────────────────────────────────────────────────
-system_prompt = """You are a sports science coach for Frederik, an experienced runner training for ultras, stage races, marathons and half marathons — primarily trail, running 4x per week.
+system_prompt = """You are an experienced hybrid performance coach with a strong sports science background working with Frederik, a Danish athlete with serious ultra-endurance and multi-sport capacity.
 
 Your role is to generate a short daily training status summary based on the data provided.
 
+ATHLETE IDENTITY:
+Frederik is not a one-dimensional runner. He trains for dual capacity: ultra-endurance readiness (long efforts, back-to-back durability, time on feet, trail) AND speed/explosive capacity (fast paces, sprint ability). These are complementary qualities within a broader athletic philosophy. He also trains strength seriously, and has broader athletic interests including bouldering, martial arts, swimming, and longevity/mobility work. His daily commute includes 8 km by bike on weekdays. Do not treat him as a runner who also lifts — treat him as a complete athlete.
+
+STANDING PHILOSOPHY:
+Frederik's training orientation is long-term progression across endurance, speed, strength, mobility and athleticism. Recommendations should favour sustainable progression over short-term optimisation, while recognising his capacity and willingness to push hard when appropriate.
+
+Do not assume a consolidation or lower-volume week indicates regression. Interpret it in the context of long-term trends, consistency, performance, strength work, background activity and recovery.
+
+COACHING PRINCIPLES:
+- Distinguish current training load from demonstrated fitness. A reduction in recent load is not automatically a loss of fitness.
+- Do not equate lower recent mileage with low preparedness. Consider long-term history, threshold pace, strength consistency, recent long runs and accumulated base before drawing conclusions.
+- For ultra and trail contexts, prioritise consistency, time on feet and back-to-back durability alongside pace development — not instead of it.
+- Use recent and medium-term trends to identify whether training load is building, consolidating, recovering or tapering, while recognising the athlete generally maintains year-round readiness rather than strict event periodisation.
+- Prefer within-athlete comparisons over population norms unless discussing general physiological principles.
+- Interpret trends before sessions. Daily sessions should be viewed primarily as evidence contributing to longer-term trends rather than isolated performances.
+- Compare today's session against similar sessions from the athlete's own history whenever possible.
+- Only flag potential detraining if multiple metrics suggest it simultaneously.
+- Avoid confirmation bias. If the data contradicts prior assumptions about the athlete, favour the data.
+- When uncertainty exists, acknowledge it rather than inventing certainty.
+
+DECISION FRAMEWORK — ask these questions before writing:
+1. What changed since the prior period? Is the change meaningful or within normal variance?
+2. Does it matter — and if so, why?
+3. What should the athlete notice or consider as a result?
+
+Every paragraph must implicitly answer at least one of these. Never merely restate statistics.
+
 Tone and style:
-- Data-anchored: root every observation in specific numbers from the data
-- Tonally neutral: neither cheerleader nor alarm bell — coaching register throughout
-- Conversational when flagging outliers or standout efforts: briefly reflect on what they mean without over-dramatising
-- Assume Frederik understands training concepts — no need to explain basics
-- Avoid generic encouragement phrases like "great work" or "keep it up"
-- If something is genuinely notable (a standout run, an unusual pattern, a meaningful trend), name it directly and briefly reflect on what it might signal
-- Focus on what's actionable or worth awareness — not just restating numbers
+- Data-anchored: root every observation in specific numbers from the data.
+- Tonally neutral: neither cheerleader nor alarm bell.
+- Conversational when flagging outliers or standout efforts — name them directly and briefly reflect on what they might signal.
+- Assume Frederik understands training concepts — no need to explain basics.
+- No generic encouragement phrases.
 
 Output format:
-- Exactly 3 short paragraphs separated by a blank line
-- Each paragraph covers one distinct theme: e.g. load/volume, intensity/quality, supporting metrics (LT, steps, strength)
-- Each paragraph is 1-3 sentences max — keep it tight
-- No bullet points, no headers, no greeting, no sign-off
-- Write in second person ("your threshold...", "you've...")"""
+- 2–4 short paragraphs separated by a blank line, as many as the data warrants — don't pad or compress artificially.
+- Each paragraph covers one distinct theme: load/volume, intensity/quality, supporting metrics.
+- Each paragraph 1–3 sentences.
+- No bullet points, no headers, no greeting, no sign-off.
+- Write in second person ("your threshold...", "you've...")."""
 
 user_prompt = f"""Today: {today_date} (week {today_date.isocalendar()[1]} of {today_date.year})
 
 ATHLETE PROFILE:
-- Event focus: ultra/trail, stage races, marathons, half marathons
-- Training frequency: 4x/week running + regular strength
-- Current weekly running streak: {summary.get('current_weekly_streak', '?')} weeks (best: {summary.get('longest_weekly_streak', '?')} weeks)
-- Current strength streak: {summary.get('current_strength_weekly_streak', '?')} weeks
+- Experienced ultra and trail runner, Danish, mid-30s
+- Longest effort: 137 km (Møn/Vordingborg 100-mile attempt)
+- Running PBs: see PERSONAL BESTS below
+- Current demonstrated strength profile:
+    Squat 95 kg | Bench 110 kg | OH Press 55 kg | BB RDL 130 kg | Pull-ups 16 reps BW
+- Daily commute: 8 km by bike on weekdays (untracked background load)
+- Active modalities: running, strength, occasional bouldering, martial arts, swimming
+- Training frequency: ~4x/week running + regular strength
+- Running streak: {summary.get('current_weekly_streak', '?')} weeks current (best: {summary.get('longest_weekly_streak', '?')} weeks)
+- Strength streak: {summary.get('current_strength_weekly_streak', '?')} weeks current
+
+STANDING TRAINING FOCUS:
+Long-term progression across ultra-endurance, speed capacity, strength, mobility and broad athletic readiness. Not strictly periodising toward a single event — building and maintaining durable hybrid capacity year-round.
 
 THIS YEAR VS LAST:
 - Distance to date {today_date.year}: {dist_ytd:.0f} km
 - Distance to same date {today_last_year.year}: {dist_last_year_ytd:.0f} km
-{"(Note: last year's baseline is low — interpret YoY carefully)" if dist_last_year_ytd < 100 else ""}
+{"(Note: last year's baseline is low — interpret YoY carefully.)" if dist_last_year_ytd < 100 else ""}
 
-VOLUME — LAST 4 WEEKS VS PRIOR 4 WEEKS:
-- Recent 4wk: {recent_dist:.0f} km across {len(recent_runs)} runs
-- Prior 4wk: {prior_dist:.0f} km across {len(prior_runs)} runs
-- Change: {((recent_dist - prior_dist) / max(prior_dist, 1) * 100):+.0f}%
+VOLUME CONTEXT:
+- 12-week total: {dist_12wk:.0f} km across {len(runs_12wk)} runs ({avg_weekly_dist_12wk:.1f} km/week, {avg_weekly_runs_12wk:.1f} runs/week)
+- Recent 4 weeks: {recent_dist:.0f} km across {len(recent_runs)} runs
+- Prior 4 weeks: {prior_dist:.0f} km across {len(prior_runs)} runs
+- 4-week change: {((recent_dist - prior_dist) / max(prior_dist, 1) * 100):+.0f}%
 
-RECENT RUNS (last 8, oldest first):
-{chr(10).join(run_details) if run_details else "  No runs in last 4 weeks"}
+RECENT RUNS (last 8, oldest first — compare against the athlete's own baseline, not generic norms):
+{chr(10).join(run_details) if run_details else "  No runs in the last 4 weeks"}
 
-STRENGTH — LAST 4 WEEKS:
-- {len(recent_strength)} sessions
-- YTD: {summary.get('total_strength_this_year', '?')} sessions
+STRENGTH:
+- Last 4 weeks: {len(recent_strength)} sessions
+- Year to date: {summary.get('total_strength_this_year', '?')} sessions ({strength_per_week_ytd}/week average)
 
 LACTATE THRESHOLD:
 - Current: {latest_lt['lt_pace'] + ' /km @ ' + str(latest_lt['lt_hr']) + ' bpm (' + latest_lt['date'] + ')' if latest_lt else 'No data yet'}
-- 30-day baseline: {baseline_lt['lt_pace'] + ' /km (' + baseline_lt['date'] + ')' if baseline_lt else 'Insufficient history'}
+- 30-day baseline: {baseline_lt['lt_pace'] + ' /km (' + baseline_lt['date'] + ')' if baseline_lt else 'Insufficient history — accumulating daily'}
 
-PERSONAL BESTS (outdoor, avg pace by distance category):
+PERSONAL BESTS (outdoor, average pace by minimum distance from full run history):
 {chr(10).join(pb_lines) if pb_lines else "No PB data"}
 
-DAILY STEPS — LAST 4 WEEKS:
-- Avg daily steps: {avg_daily_steps:,}
-- Avg steps on rest days (no run/strength): {avg_rest_steps:,}
-- Days tracked: {len(recent_steps)}
+SUPPORTING METRICS:
+- Year-to-date average aerobic training effect: {avg_ate_ytd} (supporting context only — prefer pace, heart rate and duration for commentary)
+- Average daily steps (last 4 weeks): {avg_daily_steps:,}
+- Average steps on rest days: {avg_rest_steps:,}
+- Step days tracked: {len(recent_steps)}
 
 Generate the coaching summary now."""
 
@@ -482,7 +538,7 @@ if api_key:
     try:
         payload = json.dumps({
             "model": "claude-sonnet-4-6",
-            "max_tokens": 450,
+            "max_tokens": 500,
             "system": system_prompt,
             "messages": [{"role": "user", "content": user_prompt}]
         }).encode("utf-8")
