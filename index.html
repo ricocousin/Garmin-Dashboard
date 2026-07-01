@@ -32,10 +32,13 @@
 
     /* ── Activity calendar ── */
     .cal-wrap {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 1.5rem;
-      align-items: start;
+      display: flex;
+      gap: 1rem;
+    }
+    .cal-with-streak {
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-start;
     }
     .cal-header {
       display: flex;
@@ -115,38 +118,51 @@
       align-items: center;
       justify-content: center;
     }
-    /* ── Streak sidebar ── */
-    .streak-sidebar {
+    /* ── Streak column ── */
+    .streak-col {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 4px;
-      padding-top: 2rem;
+      gap: 3px;
+      padding-top: 0;
+    }
+    .streak-col-spacer {
+      height: 26px; /* matches cal-day-label height to align first row */
+    }
+    .cal-row-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .streak-week {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 28px;
-      height: 28px;
+      width: 26px;
+      height: 26px;
       border-radius: 50%;
       font-family: var(--font-mono);
-      font-size: 10px;
+      font-size: 11px;
+      aspect-ratio: 1;
     }
     .streak-week.done { background: var(--accent2); color: white; }
     .streak-week.empty { background: var(--border); color: var(--muted); }
     .streak-week.current-fire {
-      background: var(--accent2);
       font-size: 16px;
-      width: 32px;
-      height: 32px;
+      background: transparent;
+    }
+    .streak-total {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 0.25rem;
     }
     .streak-count {
       font-family: var(--font-display);
       font-size: 1.1rem;
       font-weight: 700;
       color: var(--accent2);
-      margin-top: 0.25rem;
+      line-height: 1;
     }
     .streak-label {
       font-family: var(--font-mono);
@@ -154,10 +170,6 @@
       color: var(--text-dim);
       text-transform: uppercase;
       letter-spacing: 0.08em;
-    }
-    @media (max-width: 600px) {
-      .cal-wrap { grid-template-columns: 1fr; }
-      .streak-sidebar { flex-direction: row; padding-top: 0; flex-wrap: wrap; justify-content: center; }
     }
     main { max-width: 1400px; margin: 0 auto; padding: 2rem; display: grid; gap: 1.5rem; }
 
@@ -305,6 +317,92 @@
     .year-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 1s ease; }
     .year-bar-fill.overflow { background: var(--accent2); }
     .year-bar-labels { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
+
+    /* ── Steps card ── */
+    .steps-card-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.5rem 0;
+    }
+    .steps-ring-wrap {
+      position: relative;
+      width: 120px;
+      height: 120px;
+    }
+    .steps-ring-wrap svg {
+      transform: rotate(-90deg);
+    }
+    .steps-ring-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+    }
+    .steps-today {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-hi);
+      line-height: 1;
+    }
+    .steps-today-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .steps-days-row {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .steps-day {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+    .steps-day-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+    .steps-day-dot {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+    .steps-day-dot.active {
+      background: var(--accent);
+      color: var(--bg);
+      font-weight: 700;
+    }
+    .steps-day-dot.today-dot {
+      border: 1px solid var(--accent);
+    }
+    .steps-period {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+    .steps-avg {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
 
     .loading { text-align: center; padding: 4rem 2rem; font-family: var(--font-mono); color: var(--text-dim); font-size: 12px; letter-spacing: 0.1em; }
     .pulse { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s ease-in-out infinite; margin-right: 0.5rem; vertical-align: middle; }
@@ -468,12 +566,13 @@ function calcZones(ltPaceStr, ltHr) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function init() {
-  const [runsRaw, strengthRaw, summary, ltDataRaw, coachData] = await Promise.all([
+  const [runsRaw, strengthRaw, summary, ltDataRaw, coachData, stepsRaw] = await Promise.all([
     fetch('runs.csv').then(r => r.text()),
     fetch('strength.csv').then(r => r.text()).catch(() => null),
     fetch('summary.json').then(r => r.json()).catch(() => null),
     fetch('lactate.json').then(r => r.json()).catch(() => []),
-    fetch('coach_summary.json').then(r => r.json()).catch(() => null)
+    fetch('coach_summary.json').then(r => r.json()).catch(() => null),
+    fetch('steps.csv').then(r => r.text()).catch(() => null)
   ]);
 
   const { data: runRows } = Papa.parse(runsRaw, { header: true, skipEmptyLines: true });
@@ -686,12 +785,16 @@ async function init() {
         <rect x="5" y="6.5" width="4" height="2" rx="0.5" fill="${color}"/>
       </svg>`;
 
-    // Build day cells
+    // Build day cells + track which calendar rows have runs (for streak alignment)
     let dayCells = '';
+    const calRows = []; // each entry = array of 7 date strings for that row
+    let currentRow = [];
+
     // Empty cells before first day
     for (let i = 0; i < startDow; i++) {
-      dayCells += `<div class="cal-day"></div>`;
+      currentRow.push(null);
     }
+
     for (let d = 1; d <= lastDay.getDate(); d++) {
       const dateStr = `${year}-${String(month + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       const isToday = dateStr === todayStr;
@@ -705,30 +808,40 @@ async function init() {
           <div class="cal-day-num">${d}</div>
           ${hasActivity ? `<div class="cal-icons">${hasRun ? runIcon() : ''}${hasStrength ? strengthIcon() : ''}</div>` : ''}
         </div>`;
+      currentRow.push(dateStr);
+      if (currentRow.length === 7) { calRows.push([...currentRow]); currentRow = []; }
+    }
+    // Trailing empty cells
+    if (currentRow.length > 0) {
+      while (currentRow.length < 7) currentRow.push(null);
+      calRows.push([...currentRow]);
     }
 
-    // Streak sidebar
-    let streakHtml = `<div class="streak-sidebar">`;
-    for (let i = 0; i < streakWeeks.length; i++) {
-      const { wk } = streakWeeks[i];
-      const isCurrentWeek = i === streakWeeks.length - 1;
-      const done = weeksWithRun.has(wk);
-      if (isCurrentWeek) {
-        streakHtml += `<div class="streak-week current-fire">🔥</div>`;
-      } else {
-        streakHtml += `<div class="streak-week ${done ? 'done' : 'empty'}">${done ? '✓' : ''}</div>`;
-      }
-    }
+    // Build streak column — one entry per calendar row, aligned to weeks
+    // A row "has streak" if any date in that row has a run
+    const streakCol = calRows.map(row => {
+      const dates = row.filter(Boolean);
+      return dates.some(d => runDates.has(d));
+    });
+
+    // Current week = last partial/full row that includes today or a past date
+    const todayRowIdx = calRows.findIndex(row => row.includes(todayStr));
     const currentStreak = summary?.current_weekly_streak ?? 0;
-    streakHtml += `
-      <div class="streak-count">${currentStreak}</div>
-      <div class="streak-label">wk streak</div>
-    </div>`;
+
+    // Render grid + streak side by side using a wrapper table-like structure
+    const rowsHtml = calRows.map((row, ri) => {
+      const isCurrentRow = ri === todayRowIdx;
+      const done = streakCol[ri];
+      const streakCell = isCurrentRow
+        ? `<div class="streak-week current-fire">🔥</div>`
+        : `<div class="streak-week ${done ? 'done' : 'empty'}">${done ? '✓' : ''}</div>`;
+      return `<div class="cal-row-wrap">${streakCell}</div>`;
+    }).join('');
 
     calCard.innerHTML = `
       <div class="card-title">Activity calendar</div>
       <div class="cal-wrap">
-        <div>
+        <div style="flex:1">
           <div class="cal-header">
             <div class="cal-title">${monthNames[month]} ${year}</div>
             <div class="cal-nav">
@@ -736,16 +849,21 @@ async function init() {
               <button id="calNext">›</button>
             </div>
           </div>
-          <div class="cal-grid">
-            ${dayLabels.map(l => `<div class="cal-day-label">${l}</div>`).join('')}
-            ${dayCells}
-          </div>
-          <div style="display:flex;gap:1rem;margin-top:0.75rem;font-family:var(--font-mono);font-size:10px;color:var(--text-dim)">
-            <span>${runIcon()} Run</span>
-            <span>${strengthIcon()} Strength</span>
+          <div class="cal-with-streak">
+            <div class="cal-grid">
+              ${dayLabels.map(l => `<div class="cal-day-label">${l}</div>`).join('')}
+              ${dayCells}
+            </div>
+            <div class="streak-col">
+              <div class="streak-col-spacer"></div>
+              ${rowsHtml}
+              <div class="streak-total">
+                <div class="streak-count">${currentStreak}</div>
+                <div class="streak-label">wks</div>
+              </div>
+            </div>
           </div>
         </div>
-        ${streakHtml}
       </div>
     `;
 
@@ -762,6 +880,76 @@ async function init() {
   }
 
   renderCalendar(new Date().getFullYear(), new Date().getMonth());
+
+  // ── Steps card ───────────────────────────────────────────────────────────────
+  let stepsData = {};
+  if (stepsRaw) {
+    const { data: stepsRows } = Papa.parse(stepsRaw, { header: true, skipEmptyLines: true });
+    stepsRows.forEach(r => { if (r.date) stepsData[r.date] = parseInt(r.steps) || 0; });
+  }
+
+  const STEP_GOAL = 10000;
+  const todayStr2 = new Date().toISOString().slice(0, 10);
+  const todaySteps = stepsData[todayStr2] ?? null;
+
+  // Last 7 days
+  const last7 = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const ds = d.toISOString().slice(0, 10);
+    last7.push({
+      dateStr: ds,
+      label: ['S','M','T','W','T','F','S'][d.getDay()],
+      steps: stepsData[ds] ?? null,
+      isToday: ds === todayStr2
+    });
+  }
+
+  const avg7 = Math.round(
+    last7.filter(d => d.steps !== null).reduce((s, d) => s + d.steps, 0) /
+    Math.max(last7.filter(d => d.steps !== null).length, 1)
+  );
+
+  // Ring progress
+  const radius = 48;
+  const circ = 2 * Math.PI * radius;
+  const pct = todaySteps !== null ? Math.min(todaySteps / STEP_GOAL, 1) : 0;
+  const dash = pct * circ;
+
+  const stepsCard = document.createElement('div');
+  stepsCard.className = 'card';
+  stepsCard.innerHTML = `
+    <div class="card-title">Daily steps</div>
+    <div class="steps-card-inner">
+      <div class="steps-ring-wrap">
+        <svg width="120" height="120" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="${radius}" fill="none" stroke="var(--border)" stroke-width="8"/>
+          <circle cx="60" cy="60" r="${radius}" fill="none" stroke="var(--accent)" stroke-width="8"
+            stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}"
+            stroke-linecap="round"
+            ${todaySteps === null ? 'opacity="0"' : ''}/>
+        </svg>
+        <div class="steps-ring-center">
+          <span class="steps-today">${todaySteps !== null ? todaySteps.toLocaleString() : '—'}</span>
+          <span class="steps-today-label">today</span>
+        </div>
+      </div>
+      <div class="steps-days-row">
+        ${last7.map(d => `
+          <div class="steps-day">
+            <div class="steps-day-label">${d.label}</div>
+            <div class="steps-day-dot ${d.steps !== null ? 'active' : ''} ${d.isToday ? 'today-dot' : ''}">
+              ${d.steps !== null ? '✓' : ''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="steps-avg">7-day avg: ${avg7.toLocaleString()} steps</div>
+      <div class="steps-period">Goal: ${STEP_GOAL.toLocaleString()} steps / day</div>
+    </div>
+  `;
+  app.appendChild(stepsCard);
 
   // ── Running section ──────────────────────────────────────────────────────────
   const runHeading = document.createElement('div');
