@@ -260,6 +260,7 @@ with open("summary.json", "w", encoding="utf-8") as f:
     json.dump(summary, f, indent=2)
 
 # ── Lactate threshold ─────────────────────────────────────────────────────────
+# ── Lactate threshold ─────────────────────────────────────────────────────────
 lt_records = []
 lt_file = "lactate.json"
 
@@ -268,11 +269,13 @@ if os.path.exists(lt_file):
         lt_records = json.load(f)
 
 try:
-    status = client.get_training_status()
-    lt_hr = status.get("latestLactateThresholdHeartRate")
-    lt_speed = status.get("latestLactateThresholdSpeed")
+    lt = client.get_lactate_threshold()
+    lt_data = lt.get("speed_and_heart_rate", {})
+    lt_hr = lt_data.get("heartRate")
+    lt_speed = lt_data.get("speed")
+    lt_date = lt_data.get("calendarDate", "")[:10]
     if lt_hr and lt_speed:
-        pace_sec = (1 / lt_speed) * (1000 / 60)
+        pace_sec = (1 / (lt_speed * 10)) * (1000 / 60)
         pace_min = int(pace_sec)
         pace_s = int((pace_sec - pace_min) * 60)
         today_str = str(today.date())
@@ -280,20 +283,19 @@ try:
             lt_records.append({
                 "date": today_str,
                 "lt_hr": round(lt_hr),
-                "lt_pace": f"{pace_min}:{pace_s:02d}"
+                "lt_pace": f"{pace_min}:{pace_s:02d}",
+                "lt_source_date": lt_date
             })
             print(f"LT recorded: {pace_min}:{pace_s:02d} /km @ {round(lt_hr)} bpm")
         else:
             print("LT already recorded today")
     else:
-        print("LT data not available from Garmin")
+        print("LT data not available")
 except Exception as e:
     print(f"LT fetch skipped: {e}")
 
 with open(lt_file, "w", encoding="utf-8") as f:
     json.dump(lt_records, f, indent=2)
-
-print(f"Done! {len(all_run_rows)} runs, {len(all_strength_rows)} strength sessions. Mode: {'full' if is_full_refresh else 'incremental'}")
 
 # ── AI Coach block ────────────────────────────────────────────────────────────
 # Calls Anthropic API (claude-sonnet-4-6) to generate a daily coaching summary.
