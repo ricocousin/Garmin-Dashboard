@@ -11,32 +11,31 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Debug payload
+        run: |
+          echo "Full payload: ${{ toJson(github.event.client_payload) }}"
+          echo "Entries: ${{ toJson(github.event.client_payload.entries) }}"
+
       - name: Parse and save steps data
         run: |
           python3 << 'EOF'
           import json, os, csv
-          from datetime import datetime
 
-          payload = os.environ.get('PAYLOAD', '{}')
-          data = json.loads(payload)
-
-          # Extract step entries from Health Auto Export format
-          metrics = data.get('data', {}).get('metrics', [])
-          entries = []
-          for metric in metrics:
-              if metric.get('name') == 'step_count':
-                  for entry in metric.get('data', []):
-                      raw_date = entry.get('date', '')
-                      qty = entry.get('qty', 0)
-                      # Parse date — format: "2026-06-22 00:00:00 +0200"
-                      date_str = raw_date[:10]  # just YYYY-MM-DD
-                      entries.append((date_str, int(qty)))
-
-          if not entries:
-              print("No step data found in payload")
+          payload = os.environ.get('PAYLOAD', '[]')
+          print(f"Raw payload received: {payload[:200]}")
+          
+          try:
+              entries = json.loads(payload)
+          except Exception as e:
+              print(f"JSON parse error: {e}")
               exit(0)
 
-          # Load existing steps.csv
+          print(f"Parsed {len(entries)} entries")
+
+          if not entries:
+              print("No step data found")
+              exit(0)
+
           existing = {}
           if os.path.exists('steps.csv'):
               with open('steps.csv', 'r') as f:
@@ -44,11 +43,9 @@ jobs:
                   for row in reader:
                       existing[row['date']] = int(row['steps'])
 
-          # Merge — new data overwrites existing for same date
-          for date_str, qty in entries:
-              existing[date_str] = qty
+          for entry in entries:
+              existing[entry['date']] = int(entry['steps'])
 
-          # Write sorted descending
           with open('steps.csv', 'w', newline='') as f:
               writer = csv.DictWriter(f, fieldnames=['date', 'steps'])
               writer.writeheader()
@@ -58,7 +55,7 @@ jobs:
           print(f"Saved {len(entries)} entries, {len(existing)} total in steps.csv")
           EOF
         env:
-          PAYLOAD: ${{ toJson(github.event.client_payload) }}
+          PAYLOAD: ${{ toJson(github.event.client_payload.entries) }}
 
       - name: Commit steps
         run: |
