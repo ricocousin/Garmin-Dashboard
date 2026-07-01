@@ -462,9 +462,18 @@ api_key = os.environ.get("ANTHROPIC_API_KEY", "")
 coach_text = None
 token_usage = None
 
+
+# ── API pricing ───────────────────────────────────────────────────────────────
+# WARNING: These rates are hardcoded and must be updated manually if Anthropic
+# changes their pricing. Last verified: 2026-07-01
+# Current model: claude-sonnet-4-6
 # Pricing for claude-sonnet-4-6 (USD per million tokens)
+# Source: https://www.anthropic.com/pricing
+# Input:  $3.00 per million tokens
+# Output: $15.00 per million tokens
 PRICE_INPUT_PER_M  = 3.00
 PRICE_OUTPUT_PER_M = 15.00
+
 USD_TO_DKK = 6.90  # fixed rate — approximate, update manually if needed
 
 if api_key:
