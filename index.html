@@ -974,7 +974,157 @@ async function init() {
   `;
   app.appendChild(stepsCard);
 
-  // ── Running section ──────────────────────────────────────────────────────────
+  // ── Steps section — historical ───────────────────────────────────────────────
+  const stepsHeading = document.createElement('div');
+  stepsHeading.className = 'section-heading';
+  stepsHeading.style.cssText = '--accent: #e8ff5a';
+  stepsHeading.textContent = 'Steps — Historical';
+  app.appendChild(stepsHeading);
+
+  // Compute all step entries sorted ascending
+  const stepEntries = Object.entries(stepsData)
+    .filter(([, v]) => v > 0)
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  if (stepEntries.length > 0) {
+    const stepValues = stepEntries.map(([, v]) => v);
+    const allAvg = Math.round(stepValues.reduce((s, v) => s + v, 0) / stepValues.length);
+    const allMax = Math.max(...stepValues);
+    const allMaxDate = stepEntries[stepValues.indexOf(allMax)][0];
+
+    // 30-day average
+    const cutoff30 = new Date();
+    cutoff30.setDate(cutoff30.getDate() - 30);
+    const last30 = stepEntries.filter(([d]) => new Date(d) >= cutoff30);
+    const avg30 = last30.length > 0
+      ? Math.round(last30.reduce((s, [, v]) => s + v, 0) / last30.length) : 0;
+
+    // Monthly averages
+    const monthMap = {};
+    stepEntries.forEach(([d, v]) => {
+      const mo = d.slice(0, 7); // YYYY-MM
+      if (!monthMap[mo]) monthMap[mo] = [];
+      monthMap[mo].push(v);
+    });
+    const monthKeys = Object.keys(monthMap).sort();
+    const monthAvgs = monthKeys.map(k =>
+      Math.round(monthMap[k].reduce((s, v) => s + v, 0) / monthMap[k].length));
+    const monthLabels = monthKeys.map(k => {
+      const [y, m] = k.split('-');
+      return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1];
+    });
+
+    // Rolling 30-day average line
+    const rolling30 = stepEntries.map((_, i) => {
+      const window = stepEntries.slice(Math.max(0, i - 29), i + 1);
+      return Math.round(window.reduce((s, [, v]) => s + v, 0) / window.length);
+    });
+    const rollingLabels = stepEntries.map(([d]) => d.slice(5)); // MM-DD
+
+    // ── Stats strip ─────────────────────────────────────────────────────────────
+    const stepsStatStrip = document.createElement('div');
+    stepsStatStrip.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);';
+    stepsStatStrip.innerHTML = `
+      <div class="stat">
+        <span class="stat-label">Avg / day (all time)</span>
+        <span class="stat-value">${allAvg.toLocaleString()}</span>
+        <span class="stat-sub">steps</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Avg / day (30d)</span>
+        <span class="stat-value accent">${avg30.toLocaleString()}</span>
+        <span class="stat-sub">steps</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Best day</span>
+        <span class="stat-value">${allMax.toLocaleString()}</span>
+        <span class="stat-sub">${allMaxDate}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Days tracked</span>
+        <span class="stat-value">${stepEntries.length}</span>
+        <span class="stat-sub">with steps > 0</span>
+      </div>
+    `;
+    app.appendChild(stepsStatStrip);
+
+    // ── Charts grid ─────────────────────────────────────────────────────────────
+    const stepsGrid = document.createElement('div');
+    stepsGrid.className = 'grid-2';
+
+    const stepsMonthCard = document.createElement('div');
+    stepsMonthCard.className = 'card';
+    stepsMonthCard.innerHTML = `
+      <div class="card-title">Avg daily steps — by month</div>
+      <div class="chart-wrap"><canvas id="stepsMonthChart"></canvas></div>
+    `;
+    stepsGrid.appendChild(stepsMonthCard);
+
+    const stepsRollingCard = document.createElement('div');
+    stepsRollingCard.className = 'card';
+    stepsRollingCard.innerHTML = `
+      <div class="card-title">Rolling 30-day average</div>
+      <div class="chart-wrap"><canvas id="stepsRollingChart"></canvas></div>
+    `;
+    stepsGrid.appendChild(stepsRollingCard);
+    app.appendChild(stepsGrid);
+
+    // Render charts
+    requestAnimationFrame(() => {
+      const currentMonthIdx = monthKeys.indexOf(new Date().toISOString().slice(0, 7));
+      new Chart($('stepsMonthChart'), {
+        type: 'bar',
+        data: { labels: monthLabels, datasets: [{
+          data: monthAvgs,
+          backgroundColor: monthAvgs.map((_, i) =>
+            i === currentMonthIdx ? 'rgba(232,255,90,0.85)' : 'rgba(232,255,90,0.2)'),
+          borderRadius: 2
+        }] },
+        options: { ...chartOpts(), scales: {
+          x: { grid: { display: false }, ticks: { color: '#6b6b78' } },
+          y: { grid: { color: '#1f1f24' }, ticks: { color: '#6b6b78',
+            callback: v => v.toLocaleString() } }
+        }, plugins: { ...chartOpts().plugins, tooltip: { ...chartOpts().plugins.tooltip,
+          callbacks: { label: ctx => ` ${ctx.parsed.y.toLocaleString()} avg steps` } }} }
+      });
+
+      // Thin down rolling labels for readability
+      const rollingTick = Math.ceil(rollingLabels.length / 12);
+      new Chart($('stepsRollingChart'), {
+        type: 'line',
+        data: { labels: rollingLabels, datasets: [{
+          data: rolling30,
+          borderColor: 'rgba(232,255,90,0.8)',
+          backgroundColor: 'rgba(232,255,90,0.06)',
+          pointRadius: 0,
+          borderWidth: 2,
+          tension: 0.4,
+          fill: true
+        }, {
+          // Goal line
+          data: rolling30.map(() => STEP_GOAL),
+          borderColor: 'rgba(255,107,53,0.3)',
+          borderWidth: 1,
+          borderDash: [4, 3],
+          pointRadius: 0,
+          fill: false
+        }] },
+        options: { ...chartOpts(), scales: {
+          x: { grid: { display: false }, ticks: { color: '#6b6b78',
+            callback: (_, i) => i % rollingTick === 0 ? rollingLabels[i] : '' } },
+          y: { grid: { color: '#1f1f24' }, ticks: { color: '#6b6b78',
+            callback: v => v.toLocaleString() }, beginAtZero: false }
+        }, plugins: { ...chartOpts().plugins,
+          legend: { display: false },
+          tooltip: { ...chartOpts().plugins.tooltip,
+          callbacks: { label: ctx => ctx.datasetIndex === 0
+            ? ` ${ctx.parsed.y.toLocaleString()} avg (30d)`
+            : ` Goal: ${STEP_GOAL.toLocaleString()}` } }} }
+      });
+    });
+  }
+
+
   const runHeading = document.createElement('div');
   runHeading.className = 'section-heading';
   runHeading.textContent = 'Running';
