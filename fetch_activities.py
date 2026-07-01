@@ -268,7 +268,7 @@ if os.path.exists(lt_file):
         lt_records = json.load(f)
 
 try:
-    status = client.get_training_status()
+    status = client.get_training_status(today.strftime("%Y-%m-%d"))
     lt_hr = status.get("latestLactateThresholdHeartRate")
     lt_speed = status.get("latestLactateThresholdSpeed")
     if lt_hr and lt_speed:
