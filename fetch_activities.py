@@ -392,7 +392,7 @@ for label, min_dist in pb_cats:
 
 # Recent run details (last 8) — elevation included for trail context
 run_details = []
-for r in reversed(recent_runs[-8:]):
+for r in reversed(recent_runs[-16:]):
     elev = f" | ↑{r.get('elevation_gain_m','?')}m" if r.get('elevation_gain_m') else ""
     run_details.append(
         f"  {r['date']} | {r.get('distance_km','?')} km | {r.get('avg_pace_min_km','?')} /km | "
