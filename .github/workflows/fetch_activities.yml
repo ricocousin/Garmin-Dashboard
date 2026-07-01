@@ -31,7 +31,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add runs.csv summary.json strength.csv lactate.json coach_summary.json
+          git add runs.csv summary.json strength.csv lactate.json coach_summary.json api_usage.json
           git diff --staged --quiet || git commit -m "Update activity data"
           git push
 
